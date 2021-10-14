@@ -20,10 +20,15 @@
 
 
 import argparse
+import glob
 import math
 import os
 
 import tensorflow as tf
+
+from nvidia.dali import pipeline_def
+import nvidia.dali.fn as fn
+import nvidia.dali.plugin.tf as dali_tf
 
 
 def main():
@@ -42,9 +47,9 @@ def main():
     # Prepare dataset from randomly generated files.
     global_batch_size = args.batch_size * n_total_gpus
     train_ds, n_train_ds, n_classes = prepare_dataset(
-        args, global_batch_size, 'train', return_n_classes=True)
+        args, args.batch_size, 'train', strategy, return_n_classes=True)
     val_ds, n_val_ds = prepare_dataset(
-        args, global_batch_size, 'val', shuffle=False)
+        args, args.batch_size, 'val', strategy, shuffle=False)
     steps_per_epoch = math.ceil(n_train_ds / global_batch_size)
     validation_steps = math.ceil(n_val_ds / global_batch_size)
 
@@ -75,45 +80,62 @@ def main():
     print('done.')
 
 
-def prepare_dataset(args, global_batch_size, subdir, return_n_classes=False, shuffle=True):
+def prepare_dataset(args, batch_size, subdir, strategy, return_n_classes=False, shuffle=True):
     parentdir = os.path.join(args.input_path, subdir)
     if return_n_classes:
-        import glob
         n_classes = len(glob.glob(os.path.join(parentdir, 'cls_*')))
+    n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
 
-    # Load dataset from randomly generated files.
-    list_ds = tf.data.Dataset.list_files(
-        os.path.join(parentdir, 'cls_*', '*.jpg'),
-        shuffle=shuffle)
-    n_data = len(list_ds)
+    # Build DALI data loading pipeline.
+    # This pipeline will do: 1) reading file, 2) decoding jpeg,
+    # 3) normalizing values, and 4) transferring data from CPU to GPU.
+    @pipeline_def
+    def _build_pipeline(shard_id, num_shards):
+        # NOTE: The `fn.readers.file()` returns label IDs,
+        #     : not label name directly extracted from directory path.
+        #     : For example, cls_0000000 -> 0.
+        img_files, labels = fn.readers.file(
+            file_root=parentdir,
+            random_shuffle=shuffle,
+            name='FilesReader',
+            shard_id=shard_id,
+            num_shards=num_shards)
+        images = fn.decoders.image(img_files, device="mixed")
+        images = fn.normalize(images, device="gpu")
+        return images, labels.gpu()
 
-    list_ds = list_ds.repeat()
-    if shuffle:
-        list_ds = list_ds.shuffle(buffer_size=global_batch_size*2)
-    def process_path(file_path):
-        # Assuming that the structure of file_path like below.
-        #   "/path/to/parentdir/subdir/cls_${class_id}/[train|val]_${imgno}.jpg".
-        label = tf.strings.split(file_path, os.sep)[-2]
-        label = tf.strings.to_number(tf.strings.split(label, '_')[-1], tf.int32)
-        image = tf.io.decode_jpeg(tf.io.read_file(file_path))
-        return image, label
-    labeled_ds = list_ds.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
-    def normalization(image, label):
-        # Applying simple normalization.
-        image = (tf.cast(image, tf.float32) / 127.5) - 1
-        return image, label
-    dataset = labeled_ds.batch(global_batch_size)
-    dataset = dataset.map(normalization, num_parallel_calls=tf.data.AUTOTUNE)
-    dataset = dataset.prefetch(tf.data.AUTOTUNE)
+    # Make dataset with DALIDataset.
+    shapes = (
+        (batch_size, 224, 224, 3),
+        (batch_size,))
+    dtypes = (
+        tf.float32,
+        tf.int32)
 
-    # Set DATA as a shard mode.
-    # NOTE: The reason why DATA is set as a shard mode is that 
-    #     : this example doesn't use file level sharded dataset.
-    #     : Please read the doc below for more details.
-    # https://www.tensorflow.org/tutorials/distribute/input#sharding
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    dataset = dataset.with_options(options)
+    def dataset_fn(input_context):
+        device_id = input_context.input_pipeline_id
+        with tf.device(f"/gpu:{device_id}"):
+            dali_pipeline = _build_pipeline(
+                batch_size=batch_size,
+                device_id=device_id,
+                shard_id=device_id,
+                num_shards=input_context.num_replicas_in_sync)
+            dataset = dali_tf.DALIDataset(
+                pipeline=dali_pipeline,
+                batch_size=batch_size,
+                output_shapes=shapes,
+                output_dtypes=dtypes,
+                device_id=device_id
+            )
+            return dataset
+
+    # Make dataset distributed.
+    input_options = tf.distribute.InputOptions(
+        experimental_place_dataset_on_device=True,
+        experimental_prefetch_to_device=False,  # TF2.4 or earlier.
+        # experimental_fetch_to_device=False,  # TF2.5+
+        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
+    dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
 
     if return_n_classes:
         return dataset, n_data, n_classes

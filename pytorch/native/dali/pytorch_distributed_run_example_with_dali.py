@@ -27,11 +27,14 @@ import time
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data.distributed import DistributedSampler
 
-import torchvision
 import torchvision.models as models
-import torchvision.transforms as transforms
+
+from nvidia.dali import pipeline_def, Pipeline
+import nvidia.dali.fn as fn
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+from nvidia.dali.plugin.pytorch import DALIClassificationIterator
+from nvidia.dali.types import DALIDataType
 
 
 def _check_pytorch_version():
@@ -82,10 +85,12 @@ def main():
             os.makedirs(args.output_path)
         if not os.path.isdir(args.output_path):
             raise RuntimeError(f'{args.output_path} exists, but it is not a directory.')
-    barrier(device=device, src_rank=0)
 
-    trainloader, valloader, sampler, n_classes = prepare_dataset(
-        args.input_path, args.batch_size)
+    trainiter, valiter, n_classes = prepare_dataset(
+        args.input_path, args.batch_size,
+        device_id=local_rank, num_shards=world_size,
+        global_rank=global_rank)
+    barrier(device=device, src_rank=0)
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -103,25 +108,19 @@ def main():
         if global_rank == 0:
             print(f"Epoch {epoch+1}/{args.num_epochs}")
 
-        # NOTE: `sampler.set_epoch()` must be called when just starting each epoch.
-        #     : For more detalis, please see 
-        #     : the warning comment of "DistributedSampler" in the page below.
-        # https://pytorch.org/docs/stable/data.html
-        sampler.set_epoch(epoch)
-
         running_loss = 0.0
         # NOTE: This is a simplified way to measure the time.
         #     : You should use more precise method to know the performance.
         starttime = time.perf_counter()
-        for i, data in enumerate(trainloader):
-            # NOTE: If you want to overlap the data transferring between CPU-GPU,
-            #     : you need to additionally implement custom dataloader,
-            #     : or use pinned memory.
-            #     : Following pages could help you.
-            # https://github.com/NVIDIA/DeepLearningExamples/blob/f24917b3ee73763cfc888ceb7dbb9eb62343c81e/PyTorch/Classification/ConvNets/image_classification/dataloaders.py#L347
-            # https://pytorch.org/docs/stable/data.html#memory-pinning
-            inputs = data[0].to(device, non_blocking=True)
-            labels = data[1].to(device, non_blocking=True)
+        for i, data in enumerate(trainiter):
+            data = data[0]
+            inputs = data['data']
+            # NOTE: It looks like DALIIterator returns labels with shape=(N, 1).
+            #     : But, PyTorch assumes (N,) is a shape as a label tensor.
+            #     : Unnecessary dimension will be removed by squeeze().
+            # NOTE: DALI also has similar function, fn.squeeze(),
+            #     : but it didn't work well at least in the pipeline.
+            labels = data['label'].squeeze()
 
             optimizer.zero_grad()
 
@@ -150,17 +149,17 @@ def main():
 
         # Calculate validation result.
         running_valloss = 0.0
-        n_valiter = len(valloader)
+        n_valiter = 0
         model.eval()
         with torch.no_grad():
-            for valdata in valloader:
-                val_in = valdata[0].to(
-                    device, non_blocking=True)
-                val_label = valdata[1].to(
-                    device, non_blocking=True)
+            for valdata in valiter:
+                valdata = valdata[0]
+                val_in = valdata['data']
+                val_label = valdata['label'].squeeze()
                 valout = model(val_in)
                 valloss = criterion(valout, val_label)
                 running_valloss += valloss.item()
+                n_valiter += len(val_in)
         model.train()
 
         # Show this epoch time and training&validation losses.
@@ -197,42 +196,66 @@ def barrier(device, src_rank):
     dist.broadcast(notification, src=src_rank)
 
 
-def prepare_dataset(datadir, batch_size):
-    n_classes = len(glob.glob(
-        os.path.join(datadir, 'train', 'cls_*')))
+def prepare_dataset(datadir, batch_size, device_id=-1, num_shards=-1, global_rank=-1):
+    parentdir = os.path.join(datadir, 'train')
+    n_classes = len(glob.glob(os.path.join(parentdir, 'cls_*')))
+    # NOTE: simplified calculation.
+    n_sharded_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg'))) // num_shards
 
-    # Prepare transform ops.
-    # Basically, PIL object should be converted into tensor.
-    transform = transforms.Compose([transforms.ToTensor()])
+    # Build DALI data loading pipeline.
+    # This pipeline will do: 1) reading file, 2) decoding jpeg,
+    # 3) normalizing values, and 4) transferring data from CPU to GPU.
+    @pipeline_def
+    def _build_pipeline(rootdir, shuffle, shard_id=0, num_shards=1):
+        # NOTE: The `fn.readers.file()` returns label IDs,
+        #     : not label name directly extracted from directory path.
+        #     : For example, cls_0000000 -> 0.
+        img_files, labels = fn.readers.file(
+            file_root=rootdir,
+            random_shuffle=shuffle,
+            shard_id=shard_id,
+            num_shards=num_shards)
+        images = fn.decoders.image(img_files, device="mixed")
+        images = fn.normalize(images, device="gpu")
+        # NOTE: fn.decoders.image returns NHWC layout tensor.
+        #     : PyTorch assumes NCHW layout.
+        #     : fn.transpose will convert this layout.
+        images = fn.transpose(images, perm=[2, 0, 1], device="gpu")
+        # NOTE: The dtype of labels returned by DALI is int32 in default.
+        #     : But, int32 is usually unsupported by many PyTorch opperations.
+        #     : It's also necessary to convert data type into int64.
+        labels = fn.cast(labels, dtype=DALIDataType.INT64)
+        return images, labels.gpu()
+    train_dali_pipeline = _build_pipeline(
+        batch_size=batch_size, num_threads=4,
+        device_id=device_id,
+        shard_id=global_rank, num_shards=num_shards,
+        rootdir=parentdir, shuffle=True)
+    train_iterator = DALIClassificationIterator(
+        train_dali_pipeline,
+        size=n_sharded_data,
+        auto_reset=True,
+        last_batch_policy=LastBatchPolicy.PARTIAL,
+        last_batch_padded=False)
 
-    # Prepare train dataset.
-    # NOTE: ImageFolder assumes that `root` directory contains 
-    #     : several class directories like below.
-    # root/cls_000, root/cls_001, root/cls_002, ...
-    trainset = torchvision.datasets.ImageFolder(
-        root=os.path.join(datadir, 'train'), transform=transform)
+    # Prepare validation data iterator.
+    if global_rank != 0:
+        val_iterator = None
+    else:
+        # Validation will be done by only rank=0.
+        parentdir = os.path.join(datadir, 'val')
+        n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
+        val_dali_pipeline = _build_pipeline(
+            batch_size=batch_size, num_threads=4, device_id=device_id,
+            rootdir=parentdir, shuffle=False)
+        val_iterator = DALIClassificationIterator(
+            val_dali_pipeline,
+            size=n_data,
+            auto_reset=True,
+            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_padded=False)
 
-    # NOTE: When using Sampler,
-    #     : `shuffle` on DataLoader must *NOT* be specified.
-    #     : For more details, please read DataLoader API reference.
-    # https://pytorch.org/docs/stable/data.html
-    sampler = DistributedSampler(trainset)
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=batch_size,
-        shuffle=False, num_workers=8,
-        sampler=sampler)
-
-    # Prepare val dataset.
-    valset = torchvision.datasets.ImageFolder(
-        root=os.path.join(datadir, 'val'), transform=transform)
-    valloader = torch.utils.data.DataLoader(
-        valset, batch_size=batch_size,
-        shuffle=False, num_workers=8)
-
-    print(f'trainset.size = {len(trainset)}')
-    print(f'valset.size = {len(valset)}')
-
-    return trainloader, valloader, sampler, n_classes
+    return train_iterator, val_iterator, n_classes
 
 def build_model(n_classes):
     model = models.resnet50(pretrained=False)

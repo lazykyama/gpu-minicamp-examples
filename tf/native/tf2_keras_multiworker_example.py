@@ -99,11 +99,6 @@ def main():
               validation_data=val_ds,
               validation_steps=validation_steps,
               verbose=(args.worker_id == 0))
-    # NOTE: You must use one another dataset like test_ds
-    #     : for the actual last evlauation.
-    test_scores = model.evaluate(val_ds, steps=validation_steps, verbose=2)
-    print(f'Test loss: {test_scores[0]}')
-    print(f'Test accuracy: {test_scores[1]}')
 
     # Save model into files.
     # See the link below for more details.

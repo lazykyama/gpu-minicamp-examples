@@ -53,21 +53,34 @@ def main():
 
     args = parse_args()
 
-    # Setup distributed process group.
-    # NOTE: In PyTorch 1.8 or earlier, the user needs to pass several information like rank.
-    #     : But, after 1.9+, the user no longer gives these values in the typical case.
-    #     : Please see more details at "Important Notices:" in the page below.
-    # https://pytorch.org/docs/stable/elastic/run.html
-    dist.init_process_group(backend='nccl')
+    if not args.use_older_api:
+        # Setup distributed process group.
+        # NOTE: In PyTorch 1.8 or earlier, the user needs to pass several information like rank.
+        #     : But, after 1.9+, the user no longer gives these values in the typical case.
+        #     : Please see more details at "Important Notices:" in the page below.
+        # https://pytorch.org/docs/stable/elastic/run.html
+        dist.init_process_group(backend='nccl')
 
-    # NOTE: Before PyTorch 1.8, `--local_rank` must be added into script argeuments.
-    #     : But, after 1.9, this argument is not necessary.
-    #     : For more details, please read
-    #     : "Transitioning from torch.distributed.launch to torch.distributed.run" below.
-    # https://pytorch.org/docs/stable/elastic/run.html#transitioning-from-torch-distributed-launch-to-torch-distributed-run
-    local_rank = int(os.environ['LOCAL_RANK'])
-    global_rank = int(os.environ['RANK'])
-    world_size = int(os.environ['WORLD_SIZE'])
+        # NOTE: Before PyTorch 1.8, `--local_rank` must be added into script argeuments.
+        #     : But, after 1.9, this argument is not necessary.
+        #     : For more details, please read
+        #     : "Transitioning from torch.distributed.launch to torch.distributed.run" below.
+        # https://pytorch.org/docs/stable/elastic/run.html#transitioning-from-torch-distributed-launch-to-torch-distributed-run
+        local_rank = int(os.environ['LOCAL_RANK'])
+        global_rank = int(os.environ['RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+    else:
+        # NOTE: Due to some reasons, if you need to use older API, torch.distributed.launch,
+        #     : please switch to here.
+        local_rank = args.local_rank
+        global_rank = int(os.environ['RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+
+        dist.init_process_group(
+            backend='nccl',
+            init_method='env://',
+            rank=global_rank,
+            world_size=world_size)
     print((
         'job information: (local_rank, global_rank, world_size) = '
         f'({local_rank}, {global_rank}, {world_size})'
@@ -259,10 +272,16 @@ def parse_args():
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
 
+    parser.add_argument('--use-older-api', action='store_true')
+
     parser.add_argument('--logging-interval', type=int, default=10,
                         help='logging interval')
 
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
+    if args.use_older_api:
+        older_parser = argparse.ArgumentParser()
+        older_parser.add_argument('--local_rank', type=int, help='local rank info.')
+        args = older_parser.parse_args(unknown_args, namespace=args)
     print(args)
 
     return args

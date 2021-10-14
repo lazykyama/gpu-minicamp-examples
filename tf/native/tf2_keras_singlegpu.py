@@ -45,7 +45,7 @@ def main():
     policy = tf.keras.mixed_precision.Policy('mixed_float16')
     tf.keras.mixed_precision.set_global_policy(policy)
 
-    opt = tf.keras.optimizers.RMSprop()
+    opt = tf.keras.optimizers.SGD(learning_rate=0.001)
     model = build_model(n_classes)
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer=opt,
@@ -98,6 +98,7 @@ def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=Tr
         return image, label
     dataset = labeled_ds.batch(batch_size)
     dataset = dataset.map(normalization, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
     if return_n_classes:
         return dataset, n_data, n_classes

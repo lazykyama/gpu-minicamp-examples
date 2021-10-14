@@ -52,8 +52,14 @@ def main():
     device = torch.device(
         f'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    trainloader, valloader, testloader, sampler, n_classes = prepare_dataset(
-        args.input_path, args.batch_size, 0.2)
+    # Prepare output directory.
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+    if not os.path.isdir(args.output_path):
+        raise RuntimeError(f'{args.output_path} exists, but it is not a directory.')
+
+    trainloader, valloader, n_classes = prepare_dataset(
+        args.input_path, args.batch_size)
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -96,7 +102,7 @@ def main():
             if (i % args.logging_interval) == (args.logging_interval - 1):
                 print((
                     f'\t [iter={i+1:05d}] training loss = '
-                    f'{running_loss / args.logging_interval:.3f}'))
+                    f'{running_loss / (i+1):.3f}'))
         # End of each epoch.
 
         # Calculate validation result.
@@ -123,28 +129,14 @@ def main():
             f'loss = {running_loss / args.logging_interval:.3f}, '
             f'val_loss = {running_valloss / n_valiter:.3f}'))
 
-    # Test trained model.
-    testloss = 0.0
-    n_corrects = 0
-    n_testiter = len(testloader)
-    model.eval()
-    with torch.no_grad():
-        for testdata in testloader:
-            test_in = testdata[0].to(device)
-            test_label = testdata[1].to(device)
-            testout = model(test_in)
-            l = criterion(testout, test_label)
-            testloss += l.item()
-
-            _, predicted = torch.max(testout.data, 1)
-            n_corrects += (predicted == test_label).sum().item()
-    print(f'Test loss: {testloss/n_testiter:.3f}')
-    print(f'Test acc: {n_corrects/n_testiter:.3f}')
+    # Save model.
+    model_filepath = os.path.join(args.output_path, 'model.pth')
+    torch.save(model.state_dict(), model_filepath)
 
     print('done.')
 
 
-def prepare_dataset(datadir, batch_size, val_ratio,
+def prepare_dataset(datadir, batch_size,
                     num_workers=8, return_n_classes=True):
     if return_n_classes:
         import glob
@@ -155,43 +147,39 @@ def prepare_dataset(datadir, batch_size, val_ratio,
     # Basically, PIL object should be converted into tensor.
     transform = transforms.Compose([transforms.ToTensor()])
 
-    # Prepare trainval dataset.
+    # Prepare train dataset.
     # NOTE: ImageFolder assumes that `root` directory contains 
     #     : several class directories like below.
     # root/cls_000, root/cls_001, root/cls_002, ...
-    trainval_set = torchvision.datasets.ImageFolder(
+    trainset = torchvision.datasets.ImageFolder(
         root=os.path.join(datadir, 'train'), transform=transform)
-    val_size = int(len(trainval_set) * val_ratio)
-    train_size = len(trainval_set) - val_size
-    trainset, valset = torch.utils.data.random_split(
-        trainval_set, [train_size, val_size])
 
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=batch_size,
         shuffle=True, num_workers=num_workers)
+
+    # Prepare val dataset.
+    valset = torchvision.datasets.ImageFolder(
+        root=os.path.join(datadir, 'val'), transform=transform)
     valloader = torch.utils.data.DataLoader(
         valset, batch_size=batch_size,
         shuffle=False, num_workers=num_workers)
 
-    # Prepare test dataset.
-    testset = torchvision.datasets.ImageFolder(
-        root=os.path.join(datadir, 'val'), transform=transform)
-    testloader = torch.utils.data.DataLoader(
-        testset, batch_size=batch_size,
-        shuffle=False, num_workers=num_workers)
-
-    print(f'trainset.size = {train_size}, valset.size = {val_size}')
-    print(f'testset.size = {len(testset)}')
+    print(f'trainset.size = {len(trainset)}')
+    print(f'valset.size = {len(valset)}')
 
     if return_n_classes:
-        return trainloader, valloader, testloader, n_classes
+        return trainloader, valloader, n_classes
     else:
-        return trainloader, valloader, testloader
+        return trainloader, valloader
 
 def build_model(n_classes):
     model = models.resnet50(pretrained=False)
     n_fc_in_feats = model.fc.in_features
-    model.fc = torch.nn.Linear(n_fc_in_feats, n_classes)
+    model.fc = torch.nn.Sequential(
+        torch.nn.Linear(n_fc_in_feats, 512),
+        torch.nn.Linear(512, n_classes)
+    )
     return model
 
 def parse_args():

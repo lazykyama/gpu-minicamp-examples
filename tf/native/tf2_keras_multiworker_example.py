@@ -86,7 +86,7 @@ def main():
         policy = tf.keras.mixed_precision.Policy('mixed_float16')
         tf.keras.mixed_precision.set_global_policy(policy)
 
-        opt = tf.keras.optimizers.RMSprop()
+        opt = tf.keras.optimizers.SGD(learning_rate=0.001)
         model = build_model(n_classes)
         model.compile(loss='sparse_categorical_crossentropy',
                       optimizer=opt,
@@ -167,6 +167,7 @@ def prepare_dataset(args, global_batch_size, subdir, return_n_classes=False, shu
         return image, label
     dataset = labeled_ds.batch(global_batch_size)
     dataset = dataset.map(normalization, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
     # Set DATA as a shard mode.
     # NOTE: The reason why DATA is set as a shard mode is that 

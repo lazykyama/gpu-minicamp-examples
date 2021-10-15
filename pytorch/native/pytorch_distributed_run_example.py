@@ -157,9 +157,6 @@ def main():
                     f'{running_loss / (i+1):.3f}'))
 
         # End of each epoch.
-        if global_rank != 0:
-            # Directly goes to next epoch.
-            continue
 
         # Calculate validation result.
         if not args.no_validation:
@@ -176,6 +173,16 @@ def main():
                     valloss = criterion(valout, val_label)
                     running_valloss += valloss.item()
             model.train()
+
+            # Sync all validation results.
+            valinfo = torch.tensor([running_valloss, n_valiter], device=device)
+            dist.all_reduce(valinfo)
+            running_valloss = valinfo[0].item()
+            n_valiter = valinfo[1].item()
+
+        if global_rank != 0:
+            # Directly goes to next epoch.
+            continue
 
         # Show this epoch time and training&validation losses.
         # NOTE: This time includes vaidation time.
@@ -249,9 +256,11 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
     else:
         valset = torchvision.datasets.ImageFolder(
             root=os.path.join(datadir, 'val'), transform=transform)
+        sampler = DistributedSampler(valset)
         valloader = torch.utils.data.DataLoader(
             valset, batch_size=batch_size,
-            shuffle=False, num_workers=8)
+            shuffle=False, num_workers=8,
+            sampler=sampler)
 
     print(f'trainset.size = {len(trainset)}')
     print(f'valset.size = {len(valset)}')

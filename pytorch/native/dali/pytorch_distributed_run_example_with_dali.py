@@ -156,9 +156,6 @@ def main():
                     f'{running_loss / (i+1):.3f}'))
 
         # End of each epoch.
-        if global_rank != 0:
-            # Directly goes to next epoch.
-            continue
 
         # Calculate validation result.
         if not args.no_validation:
@@ -175,6 +172,16 @@ def main():
                     running_valloss += valloss.item()
                     n_valiter += len(val_in)
             model.train()
+
+            # Sync all validation results.
+            valinfo = torch.tensor([running_valloss, n_valiter], device=device)
+            dist.all_reduce(valinfo)
+            running_valloss = valinfo[0].item()
+            n_valiter = valinfo[1].item()
+
+        if global_rank != 0:
+            # Directly goes to next epoch.
+            continue
 
         # Show this epoch time and training&validation losses.
         # NOTE: This time includes vaidation time.
@@ -261,18 +268,21 @@ def prepare_dataset(datadir, batch_size,
         last_batch_padded=False)
 
     # Prepare validation data iterator.
-    if global_rank != 0 or no_validation:
+    if no_validation:
         val_iterator = None
     else:
         # Validation will be done by only rank=0.
         parentdir = os.path.join(datadir, 'val')
-        n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
+        # NOTE: simplified calculation.
+        n_sharded_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg'))) // num_shards
         val_dali_pipeline = _build_pipeline(
-            batch_size=batch_size, num_threads=4, device_id=device_id,
+            batch_size=batch_size, num_threads=4,
+            device_id=device_id,
+            shard_id=global_rank, num_shards=num_shards,
             rootdir=parentdir, shuffle=False)
         val_iterator = DALIClassificationIterator(
             val_dali_pipeline,
-            size=n_data,
+            size=n_sharded_data,
             auto_reset=True,
             last_batch_policy=LastBatchPolicy.PARTIAL,
             last_batch_padded=False)

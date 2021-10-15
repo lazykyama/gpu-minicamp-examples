@@ -64,7 +64,7 @@ def main():
         raise RuntimeError(f'{args.output_path} exists, but it is not a directory.')
 
     trainiter, valiter, n_classes = prepare_dataset(
-        args.input_path, args.batch_size)
+        args.input_path, args.batch_size, no_validation=args.no_validation)
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -111,28 +111,35 @@ def main():
         # End of each epoch.
 
         # Calculate validation result.
-        running_valloss = 0.0
-        n_valiter = 0
-        model.eval()
-        with torch.no_grad():
-            for valdata in valiter:
-                valdata = valdata[0]
-                val_in = valdata['data']
-                val_label = valdata['label'].squeeze()
-                valout = model(val_in)
-                valloss = criterion(valout, val_label)
-                running_valloss += valloss.item()
-                n_valiter += len(val_in)
-        model.train()
+        if not args.no_validation:
+            running_valloss = 0.0
+            n_valiter = 0
+            model.eval()
+            with torch.no_grad():
+                for valdata in valiter:
+                    valdata = valdata[0]
+                    val_in = valdata['data']
+                    val_label = valdata['label'].squeeze()
+                    valout = model(val_in)
+                    valloss = criterion(valout, val_label)
+                    running_valloss += valloss.item()
+                    n_valiter += len(val_in)
+            model.train()
 
         # Show this epoch time and training&validation losses.
         # NOTE: This time includes vaidation time.
         duration = time.perf_counter() - starttime
-        print((
-            f'\t [iter={i+1:05d}] '
-            f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
-            f'loss = {running_loss / (i+1):.3f}, '
-            f'val_loss = {running_valloss / n_valiter:.3f}'))
+        if args.no_validation:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}'))
+        else:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}, '
+                f'val_loss = {running_valloss / n_valiter:.3f}'))
 
     # Save model.
     model_filepath = os.path.join(args.output_path, 'model.pth')
@@ -141,7 +148,7 @@ def main():
     print('done.')
 
 
-def prepare_dataset(datadir, batch_size):
+def prepare_dataset(datadir, batch_size, no_validation=False):
     parentdir = os.path.join(datadir, 'train')
     n_classes = len(glob.glob(os.path.join(parentdir, 'cls_*')))
     n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
@@ -179,17 +186,20 @@ def prepare_dataset(datadir, batch_size):
         last_batch_padded=False)
 
     # Prepare validation data iterator.
-    parentdir = os.path.join(datadir, 'val')
-    n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
-    val_dali_pipeline = _build_pipeline(
-        batch_size=batch_size, num_threads=4, device_id=0,
-        rootdir=parentdir, shuffle=False)
-    val_iterator = DALIClassificationIterator(
-        val_dali_pipeline,
-        size=n_data,
-        auto_reset=True,
-        last_batch_policy=LastBatchPolicy.PARTIAL,
-        last_batch_padded=False)
+    if no_validation:
+        val_iterator = None
+    else:
+        parentdir = os.path.join(datadir, 'val')
+        n_data = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
+        val_dali_pipeline = _build_pipeline(
+            batch_size=batch_size, num_threads=4, device_id=0,
+            rootdir=parentdir, shuffle=False)
+        val_iterator = DALIClassificationIterator(
+            val_dali_pipeline,
+            size=n_data,
+            auto_reset=True,
+            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_padded=False)
 
     return train_iterator, val_iterator, n_classes
 
@@ -217,6 +227,9 @@ def parse_args():
 
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
+
+    parser.add_argument('--no-validation', action='store_true',
+                        help='Disable validation.')
 
     parser.add_argument('--logging-interval', type=int, default=10,
                         help='logging interval')

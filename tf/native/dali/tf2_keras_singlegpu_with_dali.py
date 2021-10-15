@@ -41,10 +41,11 @@ def main():
     # Prepare dataset from randomly generated files.
     train_ds, n_train_ds, n_classes = prepare_dataset(
         args, args.batch_size, 'train', return_n_classes=True)
-    val_ds, n_val_ds = prepare_dataset(
-        args, args.batch_size, 'val', shuffle=False)
     steps_per_epoch = math.ceil(n_train_ds / args.batch_size)
-    validation_steps = math.ceil(n_val_ds / args.batch_size)
+    if not args.no_validation:
+        val_ds, n_val_ds = prepare_dataset(
+            args, args.batch_size, 'val', shuffle=False)
+        validation_steps = math.ceil(n_val_ds / args.batch_size)
 
     # Setup model, etc.
     policy = tf.keras.mixed_precision.Policy('mixed_float16')
@@ -60,8 +61,8 @@ def main():
     model.fit(train_ds,
               epochs=args.num_epochs,
               steps_per_epoch=steps_per_epoch,
-              validation_data=val_ds,
-              validation_steps=validation_steps,
+              validation_data=val_ds if not args.no_validation else None,
+              validation_steps=validation_steps if not args.no_validation else None,
               verbose=1)
 
     # Save model into files.
@@ -136,6 +137,9 @@ def parse_args():
 
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
+
+    parser.add_argument('--no-validation', action='store_true',
+                        help='Disable validation.')
 
     args = parser.parse_args()
     print(args)

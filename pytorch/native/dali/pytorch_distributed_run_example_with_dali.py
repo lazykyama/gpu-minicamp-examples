@@ -102,7 +102,7 @@ def main():
     trainiter, valiter, n_classes = prepare_dataset(
         args.input_path, args.batch_size,
         device_id=local_rank, num_shards=world_size,
-        global_rank=global_rank)
+        global_rank=global_rank, no_validation=args.no_validation)
     barrier(device=device, src_rank=0)
 
     model = build_model(n_classes)
@@ -161,28 +161,35 @@ def main():
             continue
 
         # Calculate validation result.
-        running_valloss = 0.0
-        n_valiter = 0
-        model.eval()
-        with torch.no_grad():
-            for valdata in valiter:
-                valdata = valdata[0]
-                val_in = valdata['data']
-                val_label = valdata['label'].squeeze()
-                valout = model(val_in)
-                valloss = criterion(valout, val_label)
-                running_valloss += valloss.item()
-                n_valiter += len(val_in)
-        model.train()
+        if not args.no_validation:
+            running_valloss = 0.0
+            n_valiter = 0
+            model.eval()
+            with torch.no_grad():
+                for valdata in valiter:
+                    valdata = valdata[0]
+                    val_in = valdata['data']
+                    val_label = valdata['label'].squeeze()
+                    valout = model(val_in)
+                    valloss = criterion(valout, val_label)
+                    running_valloss += valloss.item()
+                    n_valiter += len(val_in)
+            model.train()
 
         # Show this epoch time and training&validation losses.
         # NOTE: This time includes vaidation time.
         duration = time.perf_counter() - starttime
-        print((
-            f'\t [iter={i+1:05d}] '
-            f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
-            f'loss = {running_loss / (i+1):.3f}, '
-            f'val_loss = {running_valloss / n_valiter:.3f}'))
+        if args.no_validation:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}'))
+        else:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}, '
+                f'val_loss = {running_valloss / n_valiter:.3f}'))
 
     # Save model.
     if global_rank == 0:
@@ -209,7 +216,9 @@ def barrier(device, src_rank):
     dist.broadcast(notification, src=src_rank)
 
 
-def prepare_dataset(datadir, batch_size, device_id=-1, num_shards=-1, global_rank=-1):
+def prepare_dataset(datadir, batch_size,
+                    device_id=-1, num_shards=-1, global_rank=-1,
+                    no_validation=False):
     parentdir = os.path.join(datadir, 'train')
     n_classes = len(glob.glob(os.path.join(parentdir, 'cls_*')))
     # NOTE: simplified calculation.
@@ -252,7 +261,7 @@ def prepare_dataset(datadir, batch_size, device_id=-1, num_shards=-1, global_ran
         last_batch_padded=False)
 
     # Prepare validation data iterator.
-    if global_rank != 0:
+    if global_rank != 0 or no_validation:
         val_iterator = None
     else:
         # Validation will be done by only rank=0.
@@ -294,6 +303,9 @@ def parse_args():
 
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
+
+    parser.add_argument('--no-validation', action='store_true',
+                        help='Disable validation.')
 
     parser.add_argument('--use-older-api', action='store_true')
 

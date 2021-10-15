@@ -60,7 +60,7 @@ def main():
         raise RuntimeError(f'{args.output_path} exists, but it is not a directory.')
 
     trainloader, valloader, n_classes = prepare_dataset(
-        args.input_path, args.batch_size)
+        args.input_path, args.batch_size, no_validation=args.no_validation)
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -107,28 +107,35 @@ def main():
         # End of each epoch.
 
         # Calculate validation result.
-        running_valloss = 0.0
-        n_valiter = len(valloader)
-        model.eval()
-        with torch.no_grad():
-            for valdata in valloader:
-                val_in = valdata[0].to(
-                    device, non_blocking=True)
-                val_label = valdata[1].to(
-                    device, non_blocking=True)
-                valout = model(val_in)
-                valloss = criterion(valout, val_label)
-                running_valloss += valloss.item()
-        model.train()
+        if not args.no_validation:
+            running_valloss = 0.0
+            n_valiter = len(valloader)
+            model.eval()
+            with torch.no_grad():
+                for valdata in valloader:
+                    val_in = valdata[0].to(
+                        device, non_blocking=True)
+                    val_label = valdata[1].to(
+                        device, non_blocking=True)
+                    valout = model(val_in)
+                    valloss = criterion(valout, val_label)
+                    running_valloss += valloss.item()
+            model.train()
 
         # Show this epoch time and training&validation losses.
         # NOTE: This time includes vaidation time.
         duration = time.perf_counter() - starttime
-        print((
-            f'\t [iter={i+1:05d}] '
-            f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
-            f'loss = {running_loss / (i+1):.3f}, '
-            f'val_loss = {running_valloss / n_valiter:.3f}'))
+        if args.no_validation:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}'))
+        else:
+            print((
+                f'\t [iter={i+1:05d}] '
+                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
+                f'loss = {running_loss / (i+1):.3f}, '
+                f'val_loss = {running_valloss / n_valiter:.3f}'))
 
     # Save model.
     model_filepath = os.path.join(args.output_path, 'model.pth')
@@ -137,7 +144,7 @@ def main():
     print('done.')
 
 
-def prepare_dataset(datadir, batch_size):
+def prepare_dataset(datadir, batch_size, no_validation=False):
     n_classes = len(glob.glob(
         os.path.join(datadir, 'train', 'cls_*')))
 
@@ -157,11 +164,15 @@ def prepare_dataset(datadir, batch_size):
         shuffle=True, num_workers=8)
 
     # Prepare val dataset.
-    valset = torchvision.datasets.ImageFolder(
-        root=os.path.join(datadir, 'val'), transform=transform)
-    valloader = torch.utils.data.DataLoader(
-        valset, batch_size=batch_size,
-        shuffle=False, num_workers=8)
+    if no_validation:
+        valset = []  # NOTE: To show a message later.
+        valloader = None
+    else:
+        valset = torchvision.datasets.ImageFolder(
+            root=os.path.join(datadir, 'val'), transform=transform)
+        valloader = torch.utils.data.DataLoader(
+            valset, batch_size=batch_size,
+            shuffle=False, num_workers=8)
 
     print(f'trainset.size = {len(trainset)}')
     print(f'valset.size = {len(valset)}')
@@ -192,6 +203,9 @@ def parse_args():
 
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
+
+    parser.add_argument('--no-validation', action='store_true',
+                        help='Disable validation.')
 
     parser.add_argument('--logging-interval', type=int, default=10,
                         help='logging interval')

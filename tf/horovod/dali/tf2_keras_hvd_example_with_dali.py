@@ -63,6 +63,9 @@ def main():
     parser.add_argument('--output-path', type=str, default='./models',
                         help='output path to store saved model')
 
+    parser.add_argument('--no-validation', action='store_true',
+                        help='Disable validation.')
+
     args = parser.parse_args()
     device = 'GPU'
 
@@ -136,11 +139,11 @@ def main():
 
     train_ds, n_sharded_train_ds, n_classes = prepare_dataset(
         args, args.batch_size, 'train', return_n_classes=True)
-    val_ds, n_sharded_val_ds = prepare_dataset(
-        args, args.batch_size, 'val', shuffle=False)
-
     num_batches_per_epoch = math.ceil(n_sharded_train_ds / args.batch_size)
-    num_val_batches_per_epoch = math.ceil(n_sharded_val_ds / args.batch_size)
+    if not args.no_validation:
+        val_ds, n_sharded_val_ds = prepare_dataset(
+            args, args.batch_size, 'val', shuffle=False)
+        num_val_batches_per_epoch = math.ceil(n_sharded_val_ds / args.batch_size)
 
     # Set up standard model.
     def build_model(n_classes):
@@ -203,7 +206,8 @@ def main():
                 print(f'aggregated val_loss = {agged_val_loss:0.5f}')
 
     # Horovod: calculate average validation loss, and write logs on worker 0.
-    callbacks.append(AverageLossCallback())
+    if not args.no_validation:
+        callbacks.append(AverageLossCallback())
     if hvd.rank() == 0:
         timing = TimingCallback()
         callbacks.append(timing)
@@ -212,8 +216,8 @@ def main():
     model.fit(
         train_ds,
         steps_per_epoch=num_batches_per_epoch,
-        validation_data=val_ds,
-        validation_steps=num_val_batches_per_epoch,
+        validation_data=val_ds if not args.no_validation else None,
+        validation_steps=num_val_batches_per_epoch if not args.no_validation else None,
         callbacks=callbacks,
         epochs=args.num_epochs,
         verbose=1 if hvd.rank() == 0 else 0,

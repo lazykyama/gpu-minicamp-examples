@@ -24,7 +24,21 @@ python tf2_keras_mirrored_strategy_example.py --input-path /ws/data/ --num-epoch
 
 ### Multiple nodes
 
-...
+Example command for two nodes:
+
+On node 0,
+
+```
+python tf2_keras_multiworker_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models \
+    --worker-addrs ${NODE0_IP_OR_HOSTNAME} ${NODE1_IP_OR_HOSTNAME} --worker-id 0
+```
+
+On node 1,
+
+```
+python tf2_keras_multiworker_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models \
+    --worker-addrs ${NODE0_IP_OR_HOSTNAME} ${NODE1_IP_OR_HOSTNAME} --worker-id 1
+```
 
 ## DALI as data preprocessing and loading
 

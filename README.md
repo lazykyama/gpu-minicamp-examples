@@ -31,3 +31,20 @@ Details are described at [tf/README.md](tf/README.md).
 ## TensorFlow+Horovod examples
 
 Details are described at [tf/README.md](tf/README.md).
+
+## Performance guideline
+
+A few reference information is listed below.
+You can use these information to verify if the code is properly running on your system.
+
+* PyTorch
+    - Standard example should achieve ~6x faster performance on 8 GPUs compared to 1 GPU.
+    - When using DALI, the performance gain ratio should be increased to x7.2.
+    - The performance can be more improved in the case of `batchsize=128` instead of `batchsize=64`.
+* TensorFlow
+    - Standard example should achieve ~3.6x faster performance on 8 GPUs (in the case of `MirroredStrategy`) compared to 1 GPU.
+    - When using DALI, the performance gain ratio should be increased to x5.8.
+* TensorFlow+Horovod
+    - Standard example should achieve ~4.6x faster performance on 8 GPUs compared to 1 GPU.
+    - When using DALI, the performance gain ratio should be increased to x6.9.
+    - The performance can be slightly improved in the case of `batchsize=128` instead of `batchsize=64`.

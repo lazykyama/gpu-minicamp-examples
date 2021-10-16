@@ -12,7 +12,7 @@ Note that an option, `--privileged`, is required to avoid several errors on data
 
 ```
 cd /path/to/your/workdir/
-docker run --gpus=all --rm -ti --privileged -v $(pwd):/ws nvcr.io/nvidia/tensorflow:21.05-tf2-py3
+docker run --gpus=all --rm -ti --privileged --ipc=host -v $(pwd):/ws nvcr.io/nvidia/tensorflow:21.05-tf2-py3
 ```
 
 Also, it assumes following directory structure.

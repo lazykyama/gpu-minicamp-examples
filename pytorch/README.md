@@ -56,12 +56,23 @@ python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 --rdzv_id="TestJob
 
 A script: [pytorch_distributed_run_example.py](native/pytorch_distributed_run_example.py).
 
-Example command:
+Example command for two nodes:
+
+On node 0,
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native
-python -m torch.distributed.run --nnodes=${NUM_YOUR_NODES} --nproc_per_node=8 \
-    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint= \
+python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
+    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
+        pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
+```
+
+On node 1,
+
+```
+cd /ws/gpu-minicamp-examples/pytorch/native
+python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
+    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
         pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
@@ -92,8 +103,24 @@ python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 --standalone \
 
 ### Multiple nodes
 
-Example command:
+A script: [pytorch_distributed_run_example_with_dali.py](native/dali/pytorch_distributed_run_example_with_dali.py).
+
+Example command for two nodes:
+
+On node 0,
 
 ```
-TBD
+cd /ws/gpu-minicamp-examples/pytorch/native/dali
+python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
+    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
+        pytorch_distributed_run_example_with_dali.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
+```
+
+On node 1,
+
+```
+cd /ws/gpu-minicamp-examples/pytorch/native/dali
+python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
+    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
+        pytorch_distributed_run_example_with_dali.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```

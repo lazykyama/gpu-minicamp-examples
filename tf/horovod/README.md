@@ -6,6 +6,8 @@ Please refer [../README.md](../README.md) to undrestand how you launch runtime c
 
 ### Single GPU with standard data API
 
+A script: [tf2_keras_nonhvd_example.py](tf2_keras_nonhvd_example.py)
+
 Example command:
 
 ```
@@ -14,6 +16,8 @@ python tf2_keras_nonhvd_example.py --input-path /ws/data/ --num-epochs 4 --outpu
 ```
 
 ### Multiple GPU on single node with standard data API
+
+A script: [tf2_keras_hvd_example.py](tf2_keras_hvd_example.py)
 
 Example command:
 
@@ -27,6 +31,8 @@ Note that `--allow-run-as-root` is necessary for only a container environment.
 If you will run this example on other environment like supercomputer, etc, then please remove it.
 
 ### Multiple nodes with standard data API
+
+A script: [tf2_keras_hvd_example.py](tf2_keras_hvd_example.py)
 
 Example command for two nodes:
 
@@ -43,6 +49,8 @@ Please reach out to your system admins.
 
 ### Single GPU with DALI
 
+A script: [tf2_keras_nonhvd_example_with_dali.py](dali/tf2_keras_nonhvd_example_with_dali.py)
+
 Example command:
 
 ```
@@ -51,6 +59,8 @@ python tf2_keras_nonhvd_example_with_dali.py --input-path /ws/data/ --num-epochs
 ```
 
 ### Multiple GPU on single node with DALI
+
+A script: [tf2_keras_hvd_example_with_dali.py](dali/tf2_keras_hvd_example_with_dali.py)
 
 Example command:
 
@@ -61,6 +71,8 @@ mpirun -np 8 --allow-run-as-root \
 ```
 
 ### Multiple nodes with DALI
+
+A script: [tf2_keras_hvd_example_with_dali.py](dali/tf2_keras_hvd_example_with_dali.py)
 
 Example command for two nodes:
 

@@ -6,6 +6,8 @@ Please refer [../README.md](../README.md) to undrestand how you launch runtime c
 
 ### Single GPU
 
+A script: [tf2_keras_singlegpu.py](tf2_keras_singlegpu.py).
+
 Example command:
 
 ```
@@ -15,6 +17,8 @@ python tf2_keras_singlegpu.py --input-path /ws/data/ --num-epochs 4 --output-pat
 
 ### Multiple GPU on single node
 
+A script: [tf2_keras_mirrored_strategy_example.py](tf2_keras_mirrored_strategy_example.py).
+
 Example command:
 
 ```
@@ -23,6 +27,8 @@ python tf2_keras_mirrored_strategy_example.py --input-path /ws/data/ --num-epoch
 ```
 
 ### Multiple nodes
+
+A script: [tf2_keras_multiworker_example](tf2_keras_multiworker_example).
 
 Example command for two nodes:
 
@@ -44,6 +50,8 @@ python tf2_keras_multiworker_example.py --input-path /ws/data/ --num-epochs 4 --
 
 ### Single GPU
 
+A script: [tf2_keras_singlegpu.py](dali/tf2_keras_singlegpu_with_dali.py).
+
 Example command:
 
 ```
@@ -52,6 +60,8 @@ python tf2_keras_singlegpu_with_dali.py --input-path /ws/data/ --num-epochs 4 --
 ```
 
 ### Multiple GPU on single node
+
+A script: [tf2_keras_mirrored_strategy_example.py](dali/tf2_keras_mirrored_strategy_example_with_dali.py).
 
 Example command:
 

@@ -30,7 +30,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 import torchvision.models as models
 
-from nvidia.dali import pipeline_def, Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.pytorch import DALIClassificationIterator
@@ -62,23 +62,30 @@ def main():
 
     if not args.use_older_api:
         # Setup distributed process group.
-        # NOTE: In PyTorch 1.8 or earlier, the user needs to pass several information like rank.
-        #     : But, after 1.9+, the user no longer gives these values in the typical case.
-        #     : Please see more details at "Important Notices:" in the page below.
+        # NOTE:
+        # In PyTorch 1.8 or earlier, the user needs to pass
+        # several information like rank.
+        # But, after 1.9+, the user no longer gives these values in
+        # the typical case.
+        # Please see more details at "Important Notices:" in the page below.
         # https://pytorch.org/docs/stable/elastic/run.html
         dist.init_process_group(backend="nccl")
 
-        # NOTE: Before PyTorch 1.8, `--local_rank` must be added into script argeuments.
-        #     : But, after 1.9, this argument is not necessary.
-        #     : For more details, please read
-        #     : "Transitioning from torch.distributed.launch to torch.distributed.run" below.
+        # NOTE:
+        # Before PyTorch 1.8, `--local_rank` must be added into
+        # script argeuments.
+        # But, after 1.9, this argument is not necessary.
+        # For more details, please read
+        # "Transitioning from torch.distributed.launch to
+        # torch.distributed.run" below.
         # https://pytorch.org/docs/stable/elastic/run.html#transitioning-from-torch-distributed-launch-to-torch-distributed-run
         local_rank = int(os.environ["LOCAL_RANK"])
         global_rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
     else:
-        # NOTE: Due to some reasons, if you need to use older API, torch.distributed.launch,
-        #     : please switch to here.
+        # NOTE:
+        # Due to some reasons, if you need to use older API,
+        # torch.distributed.launch, please switch to here.
         local_rank = args.local_rank
         global_rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
@@ -96,14 +103,18 @@ def main():
         )
     )
 
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
+    )
 
     # Prepare output directory.
     if global_rank == 0:
         if not os.path.exists(args.output_path):
             os.makedirs(args.output_path)
         if not os.path.isdir(args.output_path):
-            raise RuntimeError(f"{args.output_path} exists, but it is not a directory.")
+            raise RuntimeError(
+                f"{args.output_path} exists, but it is not a directory."
+            )
 
     trainiter, valiter, n_classes = prepare_dataset(
         args.input_path,
@@ -122,8 +133,9 @@ def main():
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
-    # NOTE: If you are interested in the acceleration by Tensor Cores,
-    #     : please read the following doc.
+    # NOTE:
+    # If you are interested in the acceleration by Tensor Cores,
+    # please read the following doc.
     # https://pytorch.org/docs/stable/amp.html
     scaler = torch.cuda.amp.GradScaler()
 
@@ -132,17 +144,20 @@ def main():
             print(f"Epoch {epoch+1}/{args.num_epochs}")
 
         running_loss = 0.0
-        # NOTE: This is a simplified way to measure the time.
-        #     : You should use more precise method to know the performance.
+        # NOTE:
+        # This is a simplified way to measure the time.
+        # You should use more precise method to know the performance.
         starttime = time.perf_counter()
         for i, data in enumerate(trainiter):
             data = data[0]
             inputs = data["data"]
-            # NOTE: It looks like DALIIterator returns labels with shape=(N, 1).
-            #     : But, PyTorch assumes (N,) is a shape as a label tensor.
-            #     : Unnecessary dimension will be removed by squeeze().
-            # NOTE: DALI also has similar function, fn.squeeze(),
-            #     : but it didn't work well at least in the pipeline.
+            # NOTE:
+            # It looks like DALIIterator returns labels with shape=(N, 1).
+            # But, PyTorch assumes (N,) is a shape as a label tensor.
+            # Unnecessary dimension will be removed by squeeze().
+            # NOTE:
+            # DALI also has similar function, fn.squeeze(),
+            # but it didn't work well at least in the pipeline.
             labels = data["label"].squeeze()
 
             optimizer.zero_grad()
@@ -223,19 +238,33 @@ def main():
         torch.save(model.state_dict(), model_filepath)
 
         # Send a notification.
-        print(f"[ranks:{local_rank} / {global_rank}] rank0 is sending a notification.")
+        print(
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "rank0 is sending a notification."
+            )
+        )
         barrier(device=device, src_rank=0)
         print(
-            f"[ranks:{local_rank} / {global_rank}] notification from rank0 has been sent."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "notification from rank0 has been sent."
+            )
         )
     else:
         # Wait for a notification from rank0.
         print(
-            f"[ranks:{local_rank} / {global_rank}] worker rank is waiting for saving model complesion..."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "worker rank is waiting for saving model complesion..."
+            )
         )
         barrier(device=device, src_rank=0)
         print(
-            f"[ranks:{local_rank} / {global_rank}] worker rank received a notification from rank0."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "worker rank received a notification from rank0."
+            )
         )
 
     # Finalize.
@@ -268,9 +297,10 @@ def prepare_dataset(
     # 3) normalizing values, and 4) transferring data from CPU to GPU.
     @pipeline_def
     def _build_pipeline(rootdir, shuffle, shard_id=0, num_shards=1):
-        # NOTE: The `fn.readers.file()` returns label IDs,
-        #     : not label name directly extracted from directory path.
-        #     : For example, cls_0000000 -> 0.
+        # NOTE:
+        # The `fn.readers.file()` returns label IDs,
+        # not label name directly extracted from directory path.
+        # For example, cls_0000000 -> 0.
         img_files, labels = fn.readers.file(
             file_root=rootdir,
             random_shuffle=shuffle,
@@ -279,13 +309,15 @@ def prepare_dataset(
         )
         images = fn.decoders.image(img_files, device="mixed")
         images = fn.normalize(images, device="gpu")
-        # NOTE: fn.decoders.image returns NHWC layout tensor.
-        #     : PyTorch assumes NCHW layout.
-        #     : fn.transpose will convert this layout.
+        # NOTE:
+        # fn.decoders.image returns NHWC layout tensor.
+        # PyTorch assumes NCHW layout.
+        # fn.transpose will convert this layout.
         images = fn.transpose(images, perm=[2, 0, 1], device="gpu")
-        # NOTE: The dtype of labels returned by DALI is int32 in default.
-        #     : But, int32 is usually unsupported by many PyTorch opperations.
-        #     : It's also necessary to convert data type into int64.
+        # NOTE:
+        # The dtype of labels returned by DALI is int32 in default.
+        # But, int32 is usually unsupported by many PyTorch opperations.
+        # It's also necessary to convert data type into int64.
         labels = fn.cast(labels, dtype=DALIDataType.INT64)
         return images, labels.gpu()
 
@@ -311,11 +343,9 @@ def prepare_dataset(
         val_iterator = None
     else:
         # Validation will be done by only rank=0.
-        parentdir = os.path.join(datadir, "val")
+        val_file_pattern = os.path.join(datadir, "val", "cls_*", "*.jpg")
         # NOTE: simplified calculation.
-        n_sharded_data = (
-            len(glob.glob(os.path.join(parentdir, "cls_*", "*.jpg"))) // num_shards
-        )
+        n_sharded_data = len(glob.glob(val_file_pattern)) // num_shards
         val_dali_pipeline = _build_pipeline(
             batch_size=batch_size,
             num_threads=4,
@@ -357,9 +387,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",
@@ -381,7 +415,9 @@ def parse_args():
     args, unknown_args = parser.parse_known_args()
     if args.use_older_api:
         older_parser = argparse.ArgumentParser()
-        older_parser.add_argument("--local_rank", type=int, help="local rank info.")
+        older_parser.add_argument(
+            "--local_rank", type=int, help="local rank info."
+        )
         args = older_parser.parse_args(unknown_args, namespace=args)
     print(args)
 

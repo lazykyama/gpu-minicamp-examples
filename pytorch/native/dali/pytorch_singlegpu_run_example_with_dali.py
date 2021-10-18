@@ -58,13 +58,15 @@ def main():
 
     args = parse_args()
 
-    device = torch.device(f"cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Prepare output directory.
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
     if not os.path.isdir(args.output_path):
-        raise RuntimeError(f"{args.output_path} exists, but it is not a directory.")
+        raise RuntimeError(
+            f"{args.output_path} exists, but it is not a directory."
+        )
 
     trainiter, valiter, n_classes = prepare_dataset(
         args.input_path, args.batch_size, no_validation=args.no_validation
@@ -75,8 +77,9 @@ def main():
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
-    # NOTE: If you are interested in the acceleration by Tensor Cores,
-    #     : please read the following doc.
+    # NOTE:
+    # If you are interested in the acceleration by Tensor Cores,
+    # please read the following doc.
     # https://pytorch.org/docs/stable/amp.html
     scaler = torch.cuda.amp.GradScaler()
 
@@ -84,17 +87,20 @@ def main():
         print(f"Epoch {epoch+1}/{args.num_epochs}")
 
         running_loss = 0.0
-        # NOTE: This is a simplified way to measure the time.
-        #     : You should use more precise method to know the performance.
+        # NOTE:
+        # This is a simplified way to measure the time.
+        # You should use more precise method to know the performance.
         starttime = time.perf_counter()
         for i, data in enumerate(trainiter):
             data = data[0]
             inputs = data["data"]
-            # NOTE: It looks like DALIIterator returns labels with shape=(N, 1).
-            #     : But, PyTorch assumes (N,) is a shape as a label tensor.
-            #     : Unnecessary dimension will be removed by squeeze().
-            # NOTE: DALI also has similar function, fn.squeeze(),
-            #     : but it didn't work well at least in the pipeline.
+            # NOTE:
+            # It looks like DALIIterator returns labels with shape=(N, 1).
+            # But, PyTorch assumes (N,) is a shape as a label tensor.
+            # Unnecessary dimension will be removed by squeeze().
+            # NOTE:
+            # DALI also has similar function, fn.squeeze(),
+            # but it didn't work well at least in the pipeline.
             labels = data["label"].squeeze()
 
             optimizer.zero_grad()
@@ -171,19 +177,24 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
     # 3) normalizing values, and 4) transferring data from CPU to GPU.
     @pipeline_def
     def _build_pipeline(rootdir, shuffle):
-        # NOTE: The `fn.readers.file()` returns label IDs,
-        #     : not label name directly extracted from directory path.
-        #     : For example, cls_0000000 -> 0.
-        img_files, labels = fn.readers.file(file_root=rootdir, random_shuffle=shuffle)
+        # NOTE:
+        # The `fn.readers.file()` returns label IDs,
+        # not label name directly extracted from directory path.
+        # For example, cls_0000000 -> 0.
+        img_files, labels = fn.readers.file(
+            file_root=rootdir, random_shuffle=shuffle
+        )
         images = fn.decoders.image(img_files, device="mixed")
         images = fn.normalize(images, device="gpu")
-        # NOTE: fn.decoders.image returns NHWC layout tensor.
-        #     : PyTorch assumes NCHW layout.
-        #     : fn.transpose will convert this layout.
+        # NOTE:
+        # fn.decoders.image returns NHWC layout tensor.
+        # PyTorch assumes NCHW layout.
+        # fn.transpose will convert this layout.
         images = fn.transpose(images, perm=[2, 0, 1], device="gpu")
-        # NOTE: The dtype of labels returned by DALI is int32 in default.
-        #     : But, int32 is usually unsupported by many PyTorch opperations.
-        #     : It's also necessary to convert data type into int64.
+        # NOTE:
+        # The dtype of labels returned by DALI is int32 in default.
+        # But, int32 is usually unsupported by many PyTorch opperations.
+        # It's also necessary to convert data type into int64.
         labels = fn.cast(labels, dtype=DALIDataType.INT64)
         return images, labels.gpu()
 
@@ -206,8 +217,8 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
     if no_validation:
         val_iterator = None
     else:
-        parentdir = os.path.join(datadir, "val")
-        n_data = len(glob.glob(os.path.join(parentdir, "cls_*", "*.jpg")))
+        val_file_pattern = os.path.join(datadir, "val", "cls_*", "*.jpg")
+        n_data = len(glob.glob(val_file_pattern))
         val_dali_pipeline = _build_pipeline(
             batch_size=batch_size,
             num_threads=4,
@@ -247,9 +258,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",

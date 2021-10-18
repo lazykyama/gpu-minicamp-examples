@@ -51,7 +51,10 @@ def main():
         args, args.batch_size, "train", strategy, return_n_classes=True
     )
     steps_per_epoch = math.ceil(n_train_ds / global_batch_size)
-    if not args.no_validation:
+    if args.no_validation:
+        val_ds = None
+        validation_steps = None
+    else:
         val_ds, n_val_ds = prepare_dataset(
             args, args.batch_size, "val", strategy, shuffle=False
         )
@@ -59,8 +62,9 @@ def main():
 
     # Setup model, etc.
     with strategy.scope():
-        # NOTE: According to the tutorial below,
-        #     : model building/compiling need to be within `strategy.scope()`.
+        # NOTE:
+        # According to the tutorial below,
+        # model building/compiling need to be within `strategy.scope()`.
         # https://www.tensorflow.org/guide/distributed_training#use_tfdistributestrategy_with_keras_modelfit
         policy = tf.keras.mixed_precision.Policy("mixed_float16")
         tf.keras.mixed_precision.set_global_policy(policy)
@@ -68,7 +72,9 @@ def main():
         opt = tf.keras.optimizers.SGD(learning_rate=0.001)
         model = build_model(n_classes)
         model.compile(
-            loss="sparse_categorical_crossentropy", optimizer=opt, metrics=["accuracy"]
+            loss="sparse_categorical_crossentropy",
+            optimizer=opt,
+            metrics=["accuracy"],
         )
 
     # Start training.
@@ -76,8 +82,8 @@ def main():
         train_ds,
         epochs=args.num_epochs,
         steps_per_epoch=steps_per_epoch,
-        validation_data=val_ds if not args.no_validation else None,
-        validation_steps=validation_steps if not args.no_validation else None,
+        validation_data=val_ds,
+        validation_steps=validation_steps,
         verbose=1,
     )
 
@@ -99,9 +105,10 @@ def prepare_dataset(
     # 3) normalizing values, and 4) transferring data from CPU to GPU.
     @pipeline_def
     def _build_pipeline(shard_id, num_shards):
-        # NOTE: The `fn.readers.file()` returns label IDs,
-        #     : not label name directly extracted from directory path.
-        #     : For example, cls_0000000 -> 0.
+        # NOTE:
+        # The `fn.readers.file()` returns label IDs,
+        # not label name directly extracted from directory path.
+        # For example, cls_0000000 -> 0.
         img_files, labels = fn.readers.file(
             file_root=parentdir,
             random_shuffle=shuffle,
@@ -140,9 +147,11 @@ def prepare_dataset(
         experimental_place_dataset_on_device=True,
         experimental_prefetch_to_device=False,  # TF2.4 or earlier.
         # experimental_fetch_to_device=False,  # TF2.5+
-        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,
+        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,  # noqa: E501
     )
-    dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
+    dataset = strategy.distribute_datasets_from_function(
+        dataset_fn, input_options
+    )
 
     if return_n_classes:
         return dataset, n_data, n_classes
@@ -151,7 +160,9 @@ def prepare_dataset(
 
 
 def build_model(n_classes):
-    base_model = tf.keras.applications.ResNet50(weights=None, include_top=False)
+    base_model = tf.keras.applications.ResNet50(
+        weights=None, include_top=False
+    )
     x = base_model.output
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Dense(512, activation="relu")(x)
@@ -172,9 +183,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",

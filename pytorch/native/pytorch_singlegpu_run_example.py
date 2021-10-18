@@ -54,13 +54,15 @@ def main():
 
     args = parse_args()
 
-    device = torch.device(f"cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Prepare output directory.
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
     if not os.path.isdir(args.output_path):
-        raise RuntimeError(f"{args.output_path} exists, but it is not a directory.")
+        raise RuntimeError(
+            f"{args.output_path} exists, but it is not a directory."
+        )
 
     trainloader, valloader, n_classes = prepare_dataset(
         args.input_path, args.batch_size, no_validation=args.no_validation
@@ -71,8 +73,9 @@ def main():
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
-    # NOTE: If you are interested in the acceleration by Tensor Cores,
-    #     : please read the following doc.
+    # NOTE:
+    # If you are interested in the acceleration by Tensor Cores,
+    # please read the following doc.
     # https://pytorch.org/docs/stable/amp.html
     scaler = torch.cuda.amp.GradScaler()
 
@@ -80,14 +83,16 @@ def main():
         print(f"Epoch {epoch+1}/{args.num_epochs}")
 
         running_loss = 0.0
-        # NOTE: This is a simplified way to measure the time.
-        #     : You should use more precise method to know the performance.
+        # NOTE:
+        # This is a simplified way to measure the time.
+        # You should use more precise method to know the performance.
         starttime = time.perf_counter()
         for i, data in enumerate(trainloader):
-            # NOTE: If you want to overlap the data transferring between CPU-GPU,
-            #     : you need to additionally implement custom dataloader,
-            #     : or use pinned memory.
-            #     : Following pages could help you.
+            # NOTE:
+            # If you want to overlap the data transferring between CPU-GPU,
+            # you need to additionally implement custom dataloader,
+            # or use pinned memory.
+            # Following pages could help you.
             # https://github.com/NVIDIA/DeepLearningExamples/blob/f24917b3ee73763cfc888ceb7dbb9eb62343c81e/PyTorch/Classification/ConvNets/image_classification/dataloaders.py#L347
             # https://pytorch.org/docs/stable/data.html#memory-pinning
             inputs = data[0].to(device, non_blocking=True)
@@ -163,8 +168,9 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
     transform = transforms.Compose([transforms.ToTensor()])
 
     # Prepare train dataset.
-    # NOTE: ImageFolder assumes that `root` directory contains
-    #     : several class directories like below.
+    # NOTE:
+    # ImageFolder assumes that `root` directory contains
+    # several class directories like below.
     # root/cls_000, root/cls_001, root/cls_002, ...
     trainset = torchvision.datasets.ImageFolder(
         root=os.path.join(datadir, "train"), transform=transform
@@ -213,9 +219,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",

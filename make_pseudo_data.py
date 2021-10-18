@@ -33,7 +33,9 @@ def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
         class_dirpath_list = []
         print("try to create class directories.")
         for c in range(num_classes):
-            class_dirpath = os.path.join(outdir, filename_prefix, f"cls_{c:03d}")
+            class_dirpath = os.path.join(
+                outdir, filename_prefix, f"cls_{c:03d}"
+            )
             print(f"\t class[{c}]: path={class_dirpath}")
             os.makedirs(class_dirpath)
             class_dirpath_list.append(class_dirpath)
@@ -41,7 +43,9 @@ def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
     imgids_list = np.array_split(np.arange(n_images), len(class_dirpath_list))
     for cid, class_dirpath in enumerate(class_dirpath_list):
         for imgid in imgids_list[cid]:
-            filepath = os.path.join(class_dirpath, f"{filename_prefix}_{imgid:07d}.jpg")
+            filepath = os.path.join(
+                class_dirpath, f"{filename_prefix}_{imgid:07d}.jpg"
+            )
             img = Image.fromarray(
                 np.random.randint(0, 255, (224, 224, 3)).astype(np.uint8)
             )
@@ -64,12 +68,17 @@ def main():
             "If not specified, all files will be stored into one directory."
         ),
     )
-    parser.add_argument("--outdir", required=True, type=str, help="Output dir.")
+    parser.add_argument(
+        "--outdir", required=True, type=str, help="Output dir."
+    )
     parser.add_argument(
         "--val-ratio",
         required=True,
         type=float,
-        help="Validation data ratio: --num-images * --val-ratio = #val_images.",
+        help=(
+            "Validation data ratio: "
+            "--num-images * --val-ratio = #val_images."
+        ),
     )
     args = parser.parse_args()
     print(args)
@@ -77,10 +86,13 @@ def main():
     n_val_images = int(args.num_images * args.val_ratio)
     n_train_images = args.num_images - n_val_images
     print(
-        f"#images {args.num_images} -> (#train, #val) = ({n_train_images}, {n_val_images})"
+        f"#images {args.num_images} -> "
+        f"(#train, #val) = ({n_train_images}, {n_val_images})"
     )
 
-    make_and_save_images(n_train_images, args.num_classes, args.outdir, "train")
+    make_and_save_images(
+        n_train_images, args.num_classes, args.outdir, "train"
+    )
     make_and_save_images(n_val_images, args.num_classes, args.outdir, "val")
     print("done.")
 

@@ -43,8 +43,13 @@ def main():
         args, args.batch_size, "train", return_n_classes=True
     )
     steps_per_epoch = math.ceil(n_train_ds / args.batch_size)
-    if not args.no_validation:
-        val_ds, n_val_ds = prepare_dataset(args, args.batch_size, "val", shuffle=False)
+    if args.no_validation:
+        val_ds = None
+        validation_steps = None
+    else:
+        val_ds, n_val_ds = prepare_dataset(
+            args, args.batch_size, "val", shuffle=False
+        )
         validation_steps = math.ceil(n_val_ds / args.batch_size)
 
     # Setup model, etc.
@@ -54,7 +59,9 @@ def main():
     opt = tf.keras.optimizers.SGD(learning_rate=0.001)
     model = build_model(n_classes)
     model.compile(
-        loss="sparse_categorical_crossentropy", optimizer=opt, metrics=["accuracy"]
+        loss="sparse_categorical_crossentropy",
+        optimizer=opt,
+        metrics=["accuracy"],
     )
 
     # Start training.
@@ -62,8 +69,8 @@ def main():
         train_ds,
         epochs=args.num_epochs,
         steps_per_epoch=steps_per_epoch,
-        validation_data=val_ds if not args.no_validation else None,
-        validation_steps=validation_steps if not args.no_validation else None,
+        validation_data=val_ds,
+        validation_steps=validation_steps,
         verbose=1,
     )
 
@@ -72,7 +79,9 @@ def main():
     print("done.")
 
 
-def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=True):
+def prepare_dataset(
+    args, batch_size, subdir, return_n_classes=False, shuffle=True
+):
     parentdir = os.path.join(args.input_path, subdir)
     if return_n_classes:
         n_classes = len(glob.glob(os.path.join(parentdir, "cls_*")))
@@ -83,9 +92,10 @@ def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=Tr
     # 3) normalizing values, and 4) transferring data from CPU to GPU.
     @pipeline_def
     def _build_pipeline():
-        # NOTE: The `fn.readers.file()` returns label IDs,
-        #     : not label name directly extracted from directory path.
-        #     : For example, cls_0000000 -> 0.
+        # NOTE:
+        # The `fn.readers.file()` returns label IDs,
+        # not label name directly extracted from directory path.
+        # For example, cls_0000000 -> 0.
         img_files, labels = fn.readers.file(
             file_root=parentdir, random_shuffle=shuffle, name="FilesReader"
         )
@@ -113,7 +123,9 @@ def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=Tr
 
 
 def build_model(n_classes):
-    base_model = tf.keras.applications.ResNet50(weights=None, include_top=False)
+    base_model = tf.keras.applications.ResNet50(
+        weights=None, include_top=False
+    )
     x = base_model.output
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Dense(512, activation="relu")(x)
@@ -134,9 +146,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",

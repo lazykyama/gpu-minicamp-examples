@@ -59,23 +59,30 @@ def main():
 
     if not args.use_older_api:
         # Setup distributed process group.
-        # NOTE: In PyTorch 1.8 or earlier, the user needs to pass several information like rank.
-        #     : But, after 1.9+, the user no longer gives these values in the typical case.
-        #     : Please see more details at "Important Notices:" in the page below.
+        # NOTE:
+        # In PyTorch 1.8 or earlier, the user needs to pass
+        # several information like rank.
+        # But, after 1.9+, the user no longer gives these values in
+        # the typical case.
+        # Please see more details at "Important Notices:" in the page below.
         # https://pytorch.org/docs/stable/elastic/run.html
         dist.init_process_group(backend="nccl")
 
-        # NOTE: Before PyTorch 1.8, `--local_rank` must be added into script argeuments.
-        #     : But, after 1.9, this argument is not necessary.
-        #     : For more details, please read
-        #     : "Transitioning from torch.distributed.launch to torch.distributed.run" below.
+        # NOTE:
+        # Before PyTorch 1.8, `--local_rank` must be added into
+        # script argeuments.
+        # But, after 1.9, this argument is not necessary.
+        # For more details, please read
+        # "Transitioning from torch.distributed.launch to
+        # torch.distributed.run" below.
         # https://pytorch.org/docs/stable/elastic/run.html#transitioning-from-torch-distributed-launch-to-torch-distributed-run
         local_rank = int(os.environ["LOCAL_RANK"])
         global_rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
     else:
-        # NOTE: Due to some reasons, if you need to use older API, torch.distributed.launch,
-        #     : please switch to here.
+        # NOTE:
+        # Due to some reasons, if you need to use older API,
+        # torch.distributed.launch, please switch to here.
         local_rank = args.local_rank
         global_rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
@@ -93,14 +100,18 @@ def main():
         )
     )
 
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
+    )
 
     # Prepare output directory.
     if global_rank == 0:
         if not os.path.exists(args.output_path):
             os.makedirs(args.output_path)
         if not os.path.isdir(args.output_path):
-            raise RuntimeError(f"{args.output_path} exists, but it is not a directory.")
+            raise RuntimeError(
+                f"{args.output_path} exists, but it is not a directory."
+            )
     barrier(device=device, src_rank=0)
 
     trainloader, valloader, sampler, n_classes = prepare_dataset(
@@ -114,8 +125,9 @@ def main():
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
-    # NOTE: If you are interested in the acceleration by Tensor Cores,
-    #     : please read the following doc.
+    # NOTE:
+    # If you are interested in the acceleration by Tensor Cores,
+    # please read the following doc.
     # https://pytorch.org/docs/stable/amp.html
     scaler = torch.cuda.amp.GradScaler()
 
@@ -123,21 +135,24 @@ def main():
         if global_rank == 0:
             print(f"Epoch {epoch+1}/{args.num_epochs}")
 
-        # NOTE: `sampler.set_epoch()` must be called when just starting each epoch.
-        #     : For more detalis, please see
-        #     : the warning comment of "DistributedSampler" in the page below.
+        # NOTE:
+        # `sampler.set_epoch()` must be called when just starting each epoch.
+        # For more detalis, please see the warning comment of
+        # "DistributedSampler" in the page below.
         # https://pytorch.org/docs/stable/data.html
         sampler.set_epoch(epoch)
 
         running_loss = 0.0
-        # NOTE: This is a simplified way to measure the time.
-        #     : You should use more precise method to know the performance.
+        # NOTE:
+        # This is a simplified way to measure the time.
+        # You should use more precise method to know the performance.
         starttime = time.perf_counter()
         for i, data in enumerate(trainloader):
-            # NOTE: If you want to overlap the data transferring between CPU-GPU,
-            #     : you need to additionally implement custom dataloader,
-            #     : or use pinned memory.
-            #     : Following pages could help you.
+            # NOTE:
+            # If you want to overlap the data transferring between CPU-GPU,
+            # you need to additionally implement custom dataloader,
+            # or use pinned memory.
+            # Following pages could help you.
             # https://github.com/NVIDIA/DeepLearningExamples/blob/f24917b3ee73763cfc888ceb7dbb9eb62343c81e/PyTorch/Classification/ConvNets/image_classification/dataloaders.py#L347
             # https://pytorch.org/docs/stable/data.html#memory-pinning
             inputs = data[0].to(device, non_blocking=True)
@@ -219,19 +234,33 @@ def main():
         torch.save(model.state_dict(), model_filepath)
 
         # Send a notification.
-        print(f"[ranks:{local_rank} / {global_rank}] rank0 is sending a notification.")
+        print(
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "rank0 is sending a notification."
+            )
+        )
         barrier(device=device, src_rank=0)
         print(
-            f"[ranks:{local_rank} / {global_rank}] notification from rank0 has been sent."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "notification from rank0 has been sent."
+            )
         )
     else:
         # Wait for a notification from rank0.
         print(
-            f"[ranks:{local_rank} / {global_rank}] worker rank is waiting for saving model complesion..."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "worker rank is waiting for saving model complesion..."
+            )
         )
         barrier(device=device, src_rank=0)
         print(
-            f"[ranks:{local_rank} / {global_rank}] worker rank received a notification from rank0."
+            (
+                f"[ranks:{local_rank} / {global_rank}] "
+                "worker rank received a notification from rank0."
+            )
         )
 
     # Finalize.
@@ -252,20 +281,25 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
     transform = transforms.Compose([transforms.ToTensor()])
 
     # Prepare train dataset.
-    # NOTE: ImageFolder assumes that `root` directory contains
-    #     : several class directories like below.
+    # NOTE:
+    # ImageFolder assumes that `root` directory contains
+    # several class directories like below.
     # root/cls_000, root/cls_001, root/cls_002, ...
     trainset = torchvision.datasets.ImageFolder(
         root=os.path.join(datadir, "train"), transform=transform
     )
 
-    # NOTE: When using Sampler,
-    #     : `shuffle` on DataLoader must *NOT* be specified.
-    #     : For more details, please read DataLoader API reference.
+    # NOTE:
+    # When using Sampler, `shuffle` on DataLoader must *NOT* be specified.
+    # For more details, please read DataLoader API reference.
     # https://pytorch.org/docs/stable/data.html
     sampler = DistributedSampler(trainset)
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=batch_size, shuffle=False, num_workers=8, sampler=sampler
+        trainset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=8,
+        sampler=sampler,
     )
 
     # Prepare val dataset.
@@ -278,7 +312,11 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
         )
         sampler = DistributedSampler(valset)
         valloader = torch.utils.data.DataLoader(
-            valset, batch_size=batch_size, shuffle=False, num_workers=8, sampler=sampler
+            valset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=8,
+            sampler=sampler,
         )
 
     print(f"trainset.size = {len(trainset)}")
@@ -308,9 +346,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",
@@ -332,7 +374,9 @@ def parse_args():
     args, unknown_args = parser.parse_known_args()
     if args.use_older_api:
         older_parser = argparse.ArgumentParser()
-        older_parser.add_argument("--local_rank", type=int, help="local rank info.")
+        older_parser.add_argument(
+            "--local_rank", type=int, help="local rank info."
+        )
         args = older_parser.parse_args(unknown_args, namespace=args)
     print(args)
 

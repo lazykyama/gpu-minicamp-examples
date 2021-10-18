@@ -4,14 +4,17 @@
 # https://github.com/horovod/horovod/blob/2481cbf7046143ae0981c58c46795768529892c5/examples/tensorflow2/tensorflow2_keras_synthetic_benchmark.py
 #
 # Mainly, several changes are applied to this example:
-#    - Dataset is not generated in runtime. It consists of randomly generated "files".
-#    - The number of batches for each iter is defined based on the actual dataset size.
+#    - Dataset is not generated in runtime.
+#      It consists of randomly generated "files".
+#    - The number of batches for each iter is defined based on
+#      the actual dataset size.
 #    - Simplified DistributedOptimizer options.
 #    - Validation is enabled.
 #    - Model saving part is added.
 #    - etc.
 #
-# Original example is distributed under the Apache License, Version 2.0 like below.
+# Original example is distributed under the Apache License, Version 2.0
+# like below.
 #
 # ==============================================================================
 # Copyright 2019 Uber Technologies, Inc. All Rights Reserved.
@@ -58,9 +61,13 @@ def main():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",
@@ -86,7 +93,9 @@ def main():
         tf.config.experimental.set_visible_devices(gpus[0], "GPU")
 
     # Load dataset from randomly generated files.
-    def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=True):
+    def prepare_dataset(
+        args, batch_size, subdir, return_n_classes=False, shuffle=True
+    ):
         parentdir = os.path.join(args.input_path, subdir)
         if return_n_classes:
             n_classes = len(glob.glob(os.path.join(parentdir, "cls_*")))
@@ -129,13 +138,20 @@ def main():
         args, args.batch_size, "train", return_n_classes=True
     )
     num_batches_per_epoch = math.ceil(n_train_ds / args.batch_size)
-    if not args.no_validation:
-        val_ds, n_val_ds = prepare_dataset(args, args.batch_size, "val", shuffle=False)
+    if args.no_validation:
+        val_ds = None
+        num_val_batches_per_epoch = None
+    else:
+        val_ds, n_val_ds = prepare_dataset(
+            args, args.batch_size, "val", shuffle=False
+        )
         num_val_batches_per_epoch = math.ceil(n_val_ds / args.batch_size)
 
     # Set up standard model.
     def build_model(n_classes):
-        base_model = tf.keras.applications.ResNet50(weights=None, include_top=False)
+        base_model = tf.keras.applications.ResNet50(
+            weights=None, include_top=False
+        )
         x = base_model.output
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
         x = tf.keras.layers.Dense(512, activation="relu")(x)
@@ -148,7 +164,9 @@ def main():
     model = build_model(n_classes)
     opt = tf.optimizers.SGD(0.001)
 
-    model.compile(loss=tf.losses.SparseCategoricalCrossentropy(), optimizer=opt)
+    model.compile(
+        loss=tf.losses.SparseCategoricalCrossentropy(), optimizer=opt
+    )
 
     callbacks = []
 
@@ -159,7 +177,10 @@ def main():
         def on_train_end(self, logs=None):
             img_sec_mean = np.mean(self.img_secs)
             img_sec_conf = 1.96 * np.std(self.img_secs)
-            print("Img/sec per %s: %.1f +-%.1f" % (device, img_sec_mean, img_sec_conf))
+            print(
+                "Img/sec per %s: %.1f +-%.1f"
+                % (device, img_sec_mean, img_sec_conf)
+            )
 
         def on_epoch_begin(self, epoch, logs=None):
             self.starttime = timer()
@@ -179,8 +200,8 @@ def main():
     model.fit(
         train_ds,
         steps_per_epoch=num_batches_per_epoch,
-        validation_data=val_ds if not args.no_validation else None,
-        validation_steps=num_val_batches_per_epoch if not args.no_validation else None,
+        validation_data=val_ds,
+        validation_steps=num_val_batches_per_epoch,
         callbacks=callbacks,
         epochs=args.num_epochs,
         verbose=1,

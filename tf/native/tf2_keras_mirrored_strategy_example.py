@@ -46,7 +46,10 @@ def main():
         args, global_batch_size, "train", return_n_classes=True
     )
     steps_per_epoch = math.ceil(n_train_ds / global_batch_size)
-    if not args.no_validation:
+    if args.no_validation:
+        val_ds = None
+        validation_steps = None
+    else:
         val_ds, n_val_ds = prepare_dataset(
             args, global_batch_size, "val", shuffle=False
         )
@@ -54,8 +57,9 @@ def main():
 
     # Setup model, etc.
     with strategy.scope():
-        # NOTE: According to the tutorial below,
-        #     : model building/compiling need to be within `strategy.scope()`.
+        # NOTE:
+        # According to the tutorial below,
+        # model building/compiling need to be within `strategy.scope()`.
         # https://www.tensorflow.org/guide/distributed_training#use_tfdistributestrategy_with_keras_modelfit
         policy = tf.keras.mixed_precision.Policy("mixed_float16")
         tf.keras.mixed_precision.set_global_policy(policy)
@@ -63,7 +67,9 @@ def main():
         opt = tf.keras.optimizers.SGD(learning_rate=0.001)
         model = build_model(n_classes)
         model.compile(
-            loss="sparse_categorical_crossentropy", optimizer=opt, metrics=["accuracy"]
+            loss="sparse_categorical_crossentropy",
+            optimizer=opt,
+            metrics=["accuracy"],
         )
 
     # Start training.
@@ -71,8 +77,8 @@ def main():
         train_ds,
         epochs=args.num_epochs,
         steps_per_epoch=steps_per_epoch,
-        validation_data=val_ds if not args.no_validation else None,
-        validation_steps=validation_steps if not args.no_validation else None,
+        validation_data=val_ds,
+        validation_steps=validation_steps,
         verbose=1,
     )
 
@@ -104,7 +110,9 @@ def prepare_dataset(
         # Assuming that the structure of file_path like below.
         #   "/path/to/parentdir/subdir/cls_${class_id}/[train|val]_${imgno}.jpg".
         label = tf.strings.split(file_path, os.sep)[-2]
-        label = tf.strings.to_number(tf.strings.split(label, "_")[-1], tf.int32)
+        label = tf.strings.to_number(
+            tf.strings.split(label, "_")[-1], tf.int32
+        )
         image = tf.io.decode_jpeg(tf.io.read_file(file_path))
         return image, label
 
@@ -120,9 +128,10 @@ def prepare_dataset(
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
     # Set DATA as a shard mode.
-    # NOTE: The reason why DATA is set as a shard mode is that
-    #     : this example doesn't use file level sharded dataset.
-    #     : Please read the doc below for more details.
+    # NOTE:
+    # The reason why DATA is set as a shard mode is that
+    # this example doesn't use file level sharded dataset.
+    # Please read the doc below for more details.
     # https://www.tensorflow.org/tutorials/distribute/input#sharding
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = (
@@ -137,7 +146,9 @@ def prepare_dataset(
 
 
 def build_model(n_classes):
-    base_model = tf.keras.applications.ResNet50(weights=None, include_top=False)
+    base_model = tf.keras.applications.ResNet50(
+        weights=None, include_top=False
+    )
     x = base_model.output
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Dense(512, activation="relu")(x)
@@ -158,9 +169,13 @@ def parse_args():
         help="a parent directory path to input image files",
     )
 
-    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=64, help="input batch size"
+    )
 
-    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument(
+        "--num-epochs", type=int, default=10, help="number of epochs"
+    )
 
     parser.add_argument(
         "--output-path",

@@ -31,58 +31,59 @@ def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
         class_dirpath_list = [outdir]
     else:
         class_dirpath_list = []
-        print('try to create class directories.')
+        print("try to create class directories.")
         for c in range(num_classes):
-            class_dirpath = os.path.join(outdir, filename_prefix, f'cls_{c:03d}')
-            print(f'\t class[{c}]: path={class_dirpath}')
+            class_dirpath = os.path.join(outdir, filename_prefix, f"cls_{c:03d}")
+            print(f"\t class[{c}]: path={class_dirpath}")
             os.makedirs(class_dirpath)
             class_dirpath_list.append(class_dirpath)
 
     imgids_list = np.array_split(np.arange(n_images), len(class_dirpath_list))
     for cid, class_dirpath in enumerate(class_dirpath_list):
         for imgid in imgids_list[cid]:
-            filepath = os.path.join(class_dirpath, f'{filename_prefix}_{imgid:07d}.jpg')
+            filepath = os.path.join(class_dirpath, f"{filename_prefix}_{imgid:07d}.jpg")
             img = Image.fromarray(
-                np.random.randint(0, 255, (224, 224, 3)).astype(np.uint8))
+                np.random.randint(0, 255, (224, 224, 3)).astype(np.uint8)
+            )
             img.save(filepath)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--num-images',
-        required=True,
-        type=int,
-        help='Number of images.')
+        "--num-images", required=True, type=int, help="Number of images."
+    )
     parser.add_argument(
-        '--num-classes',
+        "--num-classes",
         default=None,
         type=int,
         help=(
-            'Number of classes.'
-            'If specified, directories for each class will be created '
-            'and each image file will be stored into each class directory.'
-            'If not specified, all files will be stored into one directory.'))
+            "Number of classes."
+            "If specified, directories for each class will be created "
+            "and each image file will be stored into each class directory."
+            "If not specified, all files will be stored into one directory."
+        ),
+    )
+    parser.add_argument("--outdir", required=True, type=str, help="Output dir.")
     parser.add_argument(
-        '--outdir',
-        required=True,
-        type=str,
-        help='Output dir.')
-    parser.add_argument(
-        '--val-ratio',
+        "--val-ratio",
         required=True,
         type=float,
-        help='Validation data ratio: --num-images * --val-ratio = #val_images.')
+        help="Validation data ratio: --num-images * --val-ratio = #val_images.",
+    )
     args = parser.parse_args()
     print(args)
 
     n_val_images = int(args.num_images * args.val_ratio)
     n_train_images = args.num_images - n_val_images
-    print(f'#images {args.num_images} -> (#train, #val) = ({n_train_images}, {n_val_images})')
+    print(
+        f"#images {args.num_images} -> (#train, #val) = ({n_train_images}, {n_val_images})"
+    )
 
-    make_and_save_images(n_train_images, args.num_classes, args.outdir, 'train')
-    make_and_save_images(n_val_images, args.num_classes, args.outdir, 'val')
-    print('done.')
+    make_and_save_images(n_train_images, args.num_classes, args.outdir, "train")
+    make_and_save_images(n_val_images, args.num_classes, args.outdir, "val")
+    print("done.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

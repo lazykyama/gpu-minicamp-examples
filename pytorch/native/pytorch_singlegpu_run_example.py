@@ -32,7 +32,7 @@ import torchvision.transforms as transforms
 
 
 def _check_pytorch_version():
-    version_info = tuple(map(int, torch.__version__.split('.')[:2]))
+    version_info = tuple(map(int, torch.__version__.split(".")[:2]))
     if version_info[0] < 1:
         # Not supported version because of old major version, 0.x.
         return False
@@ -41,26 +41,30 @@ def _check_pytorch_version():
         return False
     return True
 
+
 def main():
     is_expected_version = _check_pytorch_version()
     if not is_expected_version:
-        raise RuntimeError((
-            "Your PyTorch version is not expected in this example code."
-            "1.9+ is required."))
+        raise RuntimeError(
+            (
+                "Your PyTorch version is not expected in this example code."
+                "1.9+ is required."
+            )
+        )
 
     args = parse_args()
 
-    device = torch.device(
-        f'cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device(f"cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Prepare output directory.
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
     if not os.path.isdir(args.output_path):
-        raise RuntimeError(f'{args.output_path} exists, but it is not a directory.')
+        raise RuntimeError(f"{args.output_path} exists, but it is not a directory.")
 
     trainloader, valloader, n_classes = prepare_dataset(
-        args.input_path, args.batch_size, no_validation=args.no_validation)
+        args.input_path, args.batch_size, no_validation=args.no_validation
+    )
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -101,9 +105,12 @@ def main():
             # Calculate and show current average loss.
             running_loss += loss.item()
             if (i % args.logging_interval) == (args.logging_interval - 1):
-                print((
-                    f'\t [iter={i+1:05d}] training loss = '
-                    f'{running_loss / (i+1):.3f}'))
+                print(
+                    (
+                        f"\t [iter={i+1:05d}] training loss = "
+                        f"{running_loss / (i+1):.3f}"
+                    )
+                )
         # End of each epoch.
 
         # Calculate validation result.
@@ -113,10 +120,8 @@ def main():
             model.eval()
             with torch.no_grad():
                 for valdata in valloader:
-                    val_in = valdata[0].to(
-                        device, non_blocking=True)
-                    val_label = valdata[1].to(
-                        device, non_blocking=True)
+                    val_in = valdata[0].to(device, non_blocking=True)
+                    val_label = valdata[1].to(device, non_blocking=True)
                     valout = model(val_in)
                     valloss = criterion(valout, val_label)
                     running_valloss += valloss.item()
@@ -126,42 +131,48 @@ def main():
         # NOTE: This time includes vaidation time.
         duration = time.perf_counter() - starttime
         if args.no_validation:
-            print((
-                f'\t [iter={i+1:05d}] '
-                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
-                f'loss = {running_loss / (i+1):.3f}'))
+            print(
+                (
+                    f"\t [iter={i+1:05d}] "
+                    f"{duration:.3f}s {duration*1000. / i:.3f}ms/step, "
+                    f"loss = {running_loss / (i+1):.3f}"
+                )
+            )
         else:
-            print((
-                f'\t [iter={i+1:05d}] '
-                f'{duration:.3f}s {duration*1000. / i:.3f}ms/step, '
-                f'loss = {running_loss / (i+1):.3f}, '
-                f'val_loss = {running_valloss / n_valiter:.3f}'))
+            print(
+                (
+                    f"\t [iter={i+1:05d}] "
+                    f"{duration:.3f}s {duration*1000. / i:.3f}ms/step, "
+                    f"loss = {running_loss / (i+1):.3f}, "
+                    f"val_loss = {running_valloss / n_valiter:.3f}"
+                )
+            )
 
     # Save model.
-    model_filepath = os.path.join(args.output_path, 'model.pth')
+    model_filepath = os.path.join(args.output_path, "model.pth")
     torch.save(model.state_dict(), model_filepath)
 
-    print('done.')
+    print("done.")
 
 
 def prepare_dataset(datadir, batch_size, no_validation=False):
-    n_classes = len(glob.glob(
-        os.path.join(datadir, 'train', 'cls_*')))
+    n_classes = len(glob.glob(os.path.join(datadir, "train", "cls_*")))
 
     # Prepare transform ops.
     # Basically, PIL object should be converted into tensor.
     transform = transforms.Compose([transforms.ToTensor()])
 
     # Prepare train dataset.
-    # NOTE: ImageFolder assumes that `root` directory contains 
+    # NOTE: ImageFolder assumes that `root` directory contains
     #     : several class directories like below.
     # root/cls_000, root/cls_001, root/cls_002, ...
     trainset = torchvision.datasets.ImageFolder(
-        root=os.path.join(datadir, 'train'), transform=transform)
+        root=os.path.join(datadir, "train"), transform=transform
+    )
 
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=batch_size,
-        shuffle=True, num_workers=8)
+        trainset, batch_size=batch_size, shuffle=True, num_workers=8
+    )
 
     # Prepare val dataset.
     if no_validation:
@@ -169,51 +180,63 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
         valloader = None
     else:
         valset = torchvision.datasets.ImageFolder(
-            root=os.path.join(datadir, 'val'), transform=transform)
+            root=os.path.join(datadir, "val"), transform=transform
+        )
         valloader = torch.utils.data.DataLoader(
-            valset, batch_size=batch_size,
-            shuffle=False, num_workers=8)
+            valset, batch_size=batch_size, shuffle=False, num_workers=8
+        )
 
-    print(f'trainset.size = {len(trainset)}')
-    print(f'valset.size = {len(valset)}')
+    print(f"trainset.size = {len(trainset)}")
+    print(f"valset.size = {len(valset)}")
 
     return trainloader, valloader, n_classes
+
 
 def build_model(n_classes):
     model = models.resnet50(pretrained=False)
     n_fc_in_feats = model.fc.in_features
     model.fc = torch.nn.Sequential(
-        torch.nn.Linear(n_fc_in_feats, 512),
-        torch.nn.Linear(512, n_classes)
+        torch.nn.Linear(n_fc_in_feats, 512), torch.nn.Linear(512, n_classes)
     )
     return model
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='PyTorch torch.distributed.run Example',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--input-path', type=str, default='./images',
-                        help='a parent directory path to input image files')
+        description="PyTorch torch.distributed.run Example",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--input-path",
+        type=str,
+        default="./images",
+        help="a parent directory path to input image files",
+    )
 
-    parser.add_argument('--batch-size', type=int, default=64,
-                        help='input batch size')
+    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
 
-    parser.add_argument('--num-epochs', type=int, default=10,
-                        help='number of epochs')
+    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
 
-    parser.add_argument('--output-path', type=str, default='./models',
-                        help='output path to store saved model')
+    parser.add_argument(
+        "--output-path",
+        type=str,
+        default="./models",
+        help="output path to store saved model",
+    )
 
-    parser.add_argument('--no-validation', action='store_true',
-                        help='Disable validation.')
+    parser.add_argument(
+        "--no-validation", action="store_true", help="Disable validation."
+    )
 
-    parser.add_argument('--logging-interval', type=int, default=10,
-                        help='logging interval')
+    parser.add_argument(
+        "--logging-interval", type=int, default=10, help="logging interval"
+    )
 
     args = parser.parse_args()
     print(args)
 
     return args
+
 
 if __name__ == "__main__":
     main()

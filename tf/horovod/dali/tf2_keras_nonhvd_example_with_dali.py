@@ -46,42 +46,51 @@ import nvidia.dali.plugin.tf as dali_tf
 
 def main():
     # Example settings
-    parser = argparse.ArgumentParser(description='TensorFlow2 Keras Horovod Example',
-                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description="TensorFlow2 Keras Horovod Example",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
-    parser.add_argument('--input-path', type=str, default='./images',
-                        help='a parent directory path to input image files')
+    parser.add_argument(
+        "--input-path",
+        type=str,
+        default="./images",
+        help="a parent directory path to input image files",
+    )
 
-    parser.add_argument('--batch-size', type=int, default=64,
-                        help='input batch size')
+    parser.add_argument("--batch-size", type=int, default=64, help="input batch size")
 
-    parser.add_argument('--num-epochs', type=int, default=10,
-                        help='number of epochs')
+    parser.add_argument("--num-epochs", type=int, default=10, help="number of epochs")
 
-    parser.add_argument('--output-path', type=str, default='./models',
-                        help='output path to store saved model')
+    parser.add_argument(
+        "--output-path",
+        type=str,
+        default="./models",
+        help="output path to store saved model",
+    )
 
-    parser.add_argument('--no-validation', action='store_true',
-                        help='Disable validation.')
+    parser.add_argument(
+        "--no-validation", action="store_true", help="Disable validation."
+    )
 
     args = parser.parse_args()
-    device = 'GPU'
+    device = "GPU"
 
-    print('Batch size: %d' % args.batch_size)
+    print("Batch size: %d" % args.batch_size)
 
     # Horovod: pin GPU to be used to process local rank (one GPU per process)
-    gpus = tf.config.experimental.list_physical_devices('GPU')
+    gpus = tf.config.experimental.list_physical_devices("GPU")
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
     if gpus:
-        tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+        tf.config.experimental.set_visible_devices(gpus[0], "GPU")
 
     # Load dataset from randomly generated files.
     def prepare_dataset(args, batch_size, subdir, return_n_classes=False, shuffle=True):
         parentdir = os.path.join(args.input_path, subdir)
         if return_n_classes:
-            n_classes = len(glob.glob(os.path.join(parentdir, 'cls_*')))
-        n_data_size = len(glob.glob(os.path.join(parentdir, 'cls_*', '*.jpg')))
+            n_classes = len(glob.glob(os.path.join(parentdir, "cls_*")))
+        n_data_size = len(glob.glob(os.path.join(parentdir, "cls_*", "*.jpg")))
 
         # Build DALI data loading pipeline.
         # This pipeline will do: 1) reading file, 2) decoding jpeg,
@@ -92,27 +101,23 @@ def main():
             #     : not label name directly extracted from directory path.
             #     : For example, cls_0000000 -> 0.
             img_files, labels = fn.readers.file(
-                file_root=parentdir,
-                random_shuffle=shuffle,
-                name='FilesReader')
+                file_root=parentdir, random_shuffle=shuffle, name="FilesReader"
+            )
             images = fn.decoders.image(img_files, device="mixed")
             images = fn.normalize(images, device="gpu")
             return images, labels.gpu()
+
         dali_pipeline = _build_pipeline(batch_size=batch_size, device_id=0)
 
         # Make dataset with DALIDataset.
-        shapes = (
-            (batch_size, 224, 224, 3),
-            (batch_size,))
-        dtypes = (
-            tf.float32,
-            tf.int32)
+        shapes = ((batch_size, 224, 224, 3), (batch_size,))
+        dtypes = (tf.float32, tf.int32)
         dataset = dali_tf.DALIDataset(
             pipeline=dali_pipeline,
             batch_size=batch_size,
             output_shapes=shapes,
             output_dtypes=dtypes,
-            device_id=0
+            device_id=0,
         )
 
         if return_n_classes:
@@ -121,11 +126,11 @@ def main():
             return dataset, n_data_size
 
     train_ds, n_train_ds, n_classes = prepare_dataset(
-        args, args.batch_size, 'train', return_n_classes=True)
+        args, args.batch_size, "train", return_n_classes=True
+    )
     num_batches_per_epoch = math.ceil(n_train_ds / args.batch_size)
     if not args.no_validation:
-        val_ds, n_val_ds = prepare_dataset(
-            args, args.batch_size, 'val', shuffle=False)
+        val_ds, n_val_ds = prepare_dataset(args, args.batch_size, "val", shuffle=False)
         num_val_batches_per_epoch = math.ceil(n_val_ds / args.batch_size)
 
     # Set up standard model.
@@ -133,21 +138,19 @@ def main():
         base_model = tf.keras.applications.ResNet50(weights=None, include_top=False)
         x = base_model.output
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
-        x = tf.keras.layers.Dense(512, activation='relu')(x)
-        outputs = tf.keras.layers.Dense(n_classes, activation='softmax')(x)
+        x = tf.keras.layers.Dense(512, activation="relu")(x)
+        outputs = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
         model = tf.keras.Model(inputs=base_model.input, outputs=outputs)
         return model
 
-    policy = tf.keras.mixed_precision.Policy('mixed_float16')
+    policy = tf.keras.mixed_precision.Policy("mixed_float16")
     tf.keras.mixed_precision.set_global_policy(policy)
     model = build_model(n_classes)
     opt = tf.optimizers.SGD(0.001)
 
-    model.compile(loss=tf.losses.SparseCategoricalCrossentropy(),
-                optimizer=opt)
+    model.compile(loss=tf.losses.SparseCategoricalCrossentropy(), optimizer=opt)
 
-    callbacks = [
-    ]
+    callbacks = []
 
     class TimingCallback(tf.keras.callbacks.Callback):
         def on_train_begin(self, logs=None):
@@ -156,7 +159,7 @@ def main():
         def on_train_end(self, logs=None):
             img_sec_mean = np.mean(self.img_secs)
             img_sec_conf = 1.96 * np.std(self.img_secs)
-            print('Img/sec per %s: %.1f +-%.1f' % (device, img_sec_mean, img_sec_conf))
+            print("Img/sec per %s: %.1f +-%.1f" % (device, img_sec_mean, img_sec_conf))
 
         def on_epoch_begin(self, epoch, logs=None):
             self.starttime = timer()
@@ -164,7 +167,7 @@ def main():
         def on_epoch_end(self, epoch, logs=None):
             time = timer() - self.starttime
             img_sec = args.batch_size * num_batches_per_epoch / time
-            print('Iter #%d: %.1f img/sec per %s' % (epoch, img_sec, device))
+            print("Iter #%d: %.1f img/sec per %s" % (epoch, img_sec, device))
             # skip warm up epoch
             if epoch > 0:
                 self.img_secs.append(img_sec)

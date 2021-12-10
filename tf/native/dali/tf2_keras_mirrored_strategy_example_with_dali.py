@@ -69,7 +69,7 @@ def main():
         policy = tf.keras.mixed_precision.Policy("mixed_float16")
         tf.keras.mixed_precision.set_global_policy(policy)
 
-        opt = tf.keras.optimizers.SGD(learning_rate=0.001)
+        opt = tf.keras.optimizers.SGD(learning_rate=args.lr)
         model = build_model(n_classes)
         model.compile(
             loss="sparse_categorical_crossentropy",
@@ -186,7 +186,9 @@ def parse_args():
     parser.add_argument(
         "--batch-size", type=int, default=64, help="input batch size"
     )
-
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="learning rate"
+    )
     parser.add_argument(
         "--num-epochs", type=int, default=10, help="number of epochs"
     )

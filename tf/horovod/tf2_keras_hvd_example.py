@@ -61,7 +61,9 @@ def main():
     parser.add_argument(
         "--batch-size", type=int, default=64, help="input batch size"
     )
-
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="learning rate"
+    )
     parser.add_argument(
         "--num-epochs", type=int, default=10, help="number of epochs"
     )
@@ -179,7 +181,7 @@ def main():
     policy = tf.keras.mixed_precision.Policy("mixed_float16")
     tf.keras.mixed_precision.set_global_policy(policy)
     model = build_model(n_classes)
-    opt = tf.optimizers.SGD(0.001)
+    opt = tf.optimizers.SGD(args.lr)
 
     # Horovod: add Horovod DistributedOptimizer.
     opt = hvd.DistributedOptimizer(opt)

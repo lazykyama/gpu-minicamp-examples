@@ -69,14 +69,17 @@ def main():
         )
 
     trainiter, valiter, n_classes = prepare_dataset(
-        args.input_path, args.batch_size, no_validation=args.no_validation
+        args.input_path,
+        args.batch_size,
+        num_workers=args.num_workers,
+        no_validation=args.no_validation,
     )
 
     model = build_model(n_classes)
     model = model.to(device)
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
     # NOTE:
     # If you are interested in the acceleration by Tensor Cores,
     # please read the following doc.
@@ -167,7 +170,7 @@ def main():
     print("done.")
 
 
-def prepare_dataset(datadir, batch_size, no_validation=False):
+def prepare_dataset(datadir, batch_size, num_workers=4, no_validation=False):
     parentdir = os.path.join(datadir, "train")
     n_classes = len(glob.glob(os.path.join(parentdir, "cls_*")))
     n_data = len(glob.glob(os.path.join(parentdir, "cls_*", "*.jpg")))
@@ -200,7 +203,7 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
 
     train_dali_pipeline = _build_pipeline(
         batch_size=batch_size,
-        num_threads=4,
+        num_threads=num_workers,
         device_id=0,
         rootdir=parentdir,
         shuffle=True,
@@ -221,7 +224,7 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
         n_data = len(glob.glob(val_file_pattern))
         val_dali_pipeline = _build_pipeline(
             batch_size=batch_size,
-            num_threads=4,
+            num_threads=num_workers,
             device_id=0,
             rootdir=parentdir,
             shuffle=False,
@@ -261,9 +264,17 @@ def parse_args():
     parser.add_argument(
         "--batch-size", type=int, default=64, help="input batch size"
     )
-
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="learning rate"
+    )
     parser.add_argument(
         "--num-epochs", type=int, default=10, help="number of epochs"
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="number of workers for data loading",
     )
 
     parser.add_argument(

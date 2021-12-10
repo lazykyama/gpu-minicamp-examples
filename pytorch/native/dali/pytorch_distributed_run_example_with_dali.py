@@ -119,6 +119,7 @@ def main():
     trainiter, valiter, n_classes = prepare_dataset(
         args.input_path,
         args.batch_size,
+        num_workers=args.num_workers,
         device_id=local_rank,
         num_shards=world_size,
         global_rank=global_rank,
@@ -132,7 +133,7 @@ def main():
     model = DDP(model, device_ids=[local_rank])
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
     # NOTE:
     # If you are interested in the acceleration by Tensor Cores,
     # please read the following doc.
@@ -280,6 +281,7 @@ def barrier(device, src_rank):
 def prepare_dataset(
     datadir,
     batch_size,
+    num_workers=4,
     device_id=-1,
     num_shards=-1,
     global_rank=-1,
@@ -323,7 +325,7 @@ def prepare_dataset(
 
     train_dali_pipeline = _build_pipeline(
         batch_size=batch_size,
-        num_threads=4,
+        num_threads=num_workers,
         device_id=device_id,
         shard_id=global_rank,
         num_shards=num_shards,
@@ -348,7 +350,7 @@ def prepare_dataset(
         n_sharded_data = len(glob.glob(val_file_pattern)) // num_shards
         val_dali_pipeline = _build_pipeline(
             batch_size=batch_size,
-            num_threads=4,
+            num_threads=num_workers,
             device_id=device_id,
             shard_id=global_rank,
             num_shards=num_shards,
@@ -390,9 +392,17 @@ def parse_args():
     parser.add_argument(
         "--batch-size", type=int, default=64, help="input batch size"
     )
-
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="learning rate"
+    )
     parser.add_argument(
         "--num-epochs", type=int, default=10, help="number of epochs"
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="number of workers for data loading",
     )
 
     parser.add_argument(

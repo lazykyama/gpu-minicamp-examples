@@ -115,7 +115,10 @@ def main():
     barrier(device=device, src_rank=0)
 
     trainloader, valloader, sampler, n_classes = prepare_dataset(
-        args.input_path, args.batch_size, no_validation=args.no_validation
+        args.input_path,
+        args.batch_size,
+        num_workers=args.num_workers,
+        no_validation=args.no_validation,
     )
 
     model = build_model(n_classes)
@@ -124,7 +127,7 @@ def main():
     model = DDP(model, device_ids=[local_rank])
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
     # NOTE:
     # If you are interested in the acceleration by Tensor Cores,
     # please read the following doc.
@@ -273,7 +276,7 @@ def barrier(device, src_rank):
     dist.broadcast(notification, src=src_rank)
 
 
-def prepare_dataset(datadir, batch_size, no_validation=False):
+def prepare_dataset(datadir, batch_size, num_workers=8, no_validation=False):
     n_classes = len(glob.glob(os.path.join(datadir, "train", "cls_*")))
 
     # Prepare transform ops.
@@ -298,7 +301,7 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
         trainset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=8,
+        num_workers=num_workers,
         sampler=sampler,
     )
 
@@ -315,7 +318,7 @@ def prepare_dataset(datadir, batch_size, no_validation=False):
             valset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=8,
+            num_workers=num_workers,
             sampler=sampler,
         )
 
@@ -349,9 +352,17 @@ def parse_args():
     parser.add_argument(
         "--batch-size", type=int, default=64, help="input batch size"
     )
-
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="learning rate"
+    )
     parser.add_argument(
         "--num-epochs", type=int, default=10, help="number of epochs"
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=8,
+        help="number of workers for data loading",
     )
 
     parser.add_argument(

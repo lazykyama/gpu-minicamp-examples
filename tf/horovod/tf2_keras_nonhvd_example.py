@@ -1,21 +1,22 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-# This code is baed on official example of Horovod below.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This code is based on an official example of Horovod below.
 # https://github.com/horovod/horovod/blob/2481cbf7046143ae0981c58c46795768529892c5/examples/tensorflow2/tensorflow2_keras_synthetic_benchmark.py
-#
-# Mainly, several changes are applied to this example:
-#    - Dataset is not generated in runtime.
-#      It consists of randomly generated "files".
-#    - The number of batches for each iter is defined based on
-#      the actual dataset size.
-#    - Simplified DistributedOptimizer options.
-#    - Validation is enabled.
-#    - Model saving part is added.
-#    - etc.
-#
-# Original example is distributed under the Apache License, Version 2.0
-# like below.
-#
+# The original example is distributed under the Apache License,
+# Version 2.0 like below.
 # ==============================================================================
 # Copyright 2019 Uber Technologies, Inc. All Rights Reserved.
 #
@@ -31,6 +32,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+#
+# This example includes several changes like below:
+#    - All Horovod related parts are removed to emphasize differences
+#      between Horovod vs non-Horovod codes.
+#    - Dataset is not generated in runtime.
+#      It consists of randomly generated "files".
+#    - The number of batches for each iter is defined based on
+#      the actual dataset size.
+#    - Simplified DistributedOptimizer options.
+#    - Validation is enabled.
+#    - Model saving part is added.
+#    - etc.
+#
 
 
 import argparse

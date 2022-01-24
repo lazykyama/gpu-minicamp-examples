@@ -22,18 +22,15 @@ import numpy as np
 
 
 def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
-    if num_classes is None:
-        class_dirpath_list = [outdir]
-    else:
-        class_dirpath_list = []
-        print("try to create class directories.")
-        for c in range(num_classes):
-            class_dirpath = os.path.join(
-                outdir, filename_prefix, f"cls_{c:03d}"
-            )
-            print(f"\t class[{c}]: path={class_dirpath}")
-            os.makedirs(class_dirpath)
-            class_dirpath_list.append(class_dirpath)
+    class_dirpath_list = []
+    print("try to create class directories.")
+    for c in range(num_classes):
+        class_dirpath = os.path.join(
+            outdir, filename_prefix, f"cls_{c:03d}"
+        )
+        print(f"\t class[{c}]: path={class_dirpath}")
+        os.makedirs(class_dirpath)
+        class_dirpath_list.append(class_dirpath)
 
     imgids_list = np.array_split(np.arange(n_images), len(class_dirpath_list))
     for cid, class_dirpath in enumerate(class_dirpath_list):
@@ -54,13 +51,12 @@ def main():
     )
     parser.add_argument(
         "--num-classes",
-        default=None,
+        required=True,
         type=int,
         help=(
             "Number of classes."
-            "If specified, directories for each class will be created "
+            "Directories for each class will be created "
             "and each image file will be stored into each class directory."
-            "If not specified, all files will be stored into one directory."
         ),
     )
     parser.add_argument(

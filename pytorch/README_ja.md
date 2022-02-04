@@ -1,15 +1,13 @@
 # PyTorch Examples
 
-[Japanese version readme](./README_ja.md)
-
-Following example instructions assume that your codes will be running on a container launched by commends below.
+以降のコマンドは、以下のように起動されたコンテナ上で実行されることを想定しています。
 
 ```
 cd /path/to/your/workdir/
 docker run --gpus=all --rm -it --ipc=host -v $(pwd):/ws nvcr.io/nvidia/pytorch:21.09-py3
 ```
 
-Also, it assumes following directory structure.
+また、ディレクトリ構造は以下のものを想定しています。
 
 ```
 /ws
@@ -17,29 +15,29 @@ Also, it assumes following directory structure.
 └── gpu-minicamp-examples
 ```
 
-## Standard data API as data preprocessing and loading
+## 標準的なデータAPIによる、データロードおよび前処理
 
-### Single GPU
+### シングルGPU
 
-A script: [pytorch_singlegpu_run_example.py](native/pytorch_singlegpu_run_example.py).
+スクリプト: [pytorch_singlegpu_run_example.py](native/pytorch_singlegpu_run_example.py).
 
-Example command:
+サンプルコマンド:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native
 python pytorch_singlegpu_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 250
 ```
 
-### Multiple GPU on single node
+### シングルノードマルチGPU
 
-For multi-GPU training, this code utilizes new version API, `torch.distibuted.run`, introduced since PyTorch 1.9.
-If you need to use older API, `torch.distributed.launch`, please add `--use-older-api` option.
-(In addition, it is necessary to change `--standalone` or `--rdzv_endpoint` to `--master_addr` option.)
-Internally, a slightly different code path is enabled.
+マルチGPU実行のため、PyTorch 1.9から導入された新しいAPIである `torch.distibuted.run` を利用しています。
+旧APIである `torch.distributed.launch` を試す必要がある場合、スクリプト実行時に `--use-older-api` オプションを追加してください。
+(加えて、`--standalone` もしくは `--rdzv_endpoint` を `--master_addr` に変更する必要もあります。)
+内部的には若干異なるコードが利用されます。
 
-A script: [pytorch_distributed_run_example.py](native/pytorch_distributed_run_example.py).
+スクリプト: [pytorch_distributed_run_example.py](native/pytorch_distributed_run_example.py).
 
-Example command:
+サンプルコマンド:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native
@@ -47,29 +45,20 @@ python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 --standalone \
     pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
-If you are interested in [Torch Distributed Elastic](https://pytorch.org/docs/stable/distributed.elastic.html), also please try a following command.
+[Torch Distributed Elastic](https://pytorch.org/docs/stable/distributed.elastic.html) の機能に興味がある場合、以下のコマンドを試してみてください。
 
 ```
 python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=localhost \
     pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
-### Multiple nodes
+### マルチノード
 
-A script: [pytorch_distributed_run_example.py](native/pytorch_distributed_run_example.py).
+スクリプト: [pytorch_distributed_run_example.py](native/pytorch_distributed_run_example.py).
 
-Example command for two nodes:
+2ノードでのサンプルコマンド:
 
-On node 0,
-
-```
-cd /ws/gpu-minicamp-examples/pytorch/native
-python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
-    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
-        pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
-```
-
-On node 1,
+ノード0:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native
@@ -78,24 +67,33 @@ python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
         pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
-## DALI as data preprocessing and loading
+ノード1:
 
-### Single GPU
+```
+cd /ws/gpu-minicamp-examples/pytorch/native
+python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
+    --rdzv_id="TestJob" --rdzv_backend=c10d --rdzv_endpoint=${NODE0_IP_OR_HOSTNAME} \
+        pytorch_distributed_run_example.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
+```
 
-A script: [pytorch_singlegpu_run_example_with_dali.py](native/dali/pytorch_singlegpu_run_example_with_dali.py).
+## DALIによる、データロードおよび前処理
 
-Example command:
+### シングルGPU
+
+スクリプト: [pytorch_singlegpu_run_example_with_dali.py](native/dali/pytorch_singlegpu_run_example_with_dali.py).
+
+サンプルコマンド:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native/dali
 python pytorch_singlegpu_run_example_with_dali.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 250
 ```
 
-### Multiple GPU
+### マルチGPU
 
-A script: [pytorch_distributed_run_example_with_dali.py](native/dali/pytorch_distributed_run_example_with_dali.py).
+スクリプト: [pytorch_distributed_run_example_with_dali.py](native/dali/pytorch_distributed_run_example_with_dali.py).
 
-Example command:
+サンプルコマンド:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native/dali
@@ -103,13 +101,13 @@ python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 --standalone \
     pytorch_distributed_run_example_with_dali.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
-### Multiple nodes
+### マルチノード
 
-A script: [pytorch_distributed_run_example_with_dali.py](native/dali/pytorch_distributed_run_example_with_dali.py).
+スクリプト: [pytorch_distributed_run_example_with_dali.py](native/dali/pytorch_distributed_run_example_with_dali.py).
 
-Example command for two nodes:
+2ノードでのサンプルコマンド:
 
-On node 0,
+ノード0:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native/dali
@@ -118,7 +116,7 @@ python -m torch.distributed.run --nnodes=2 --nproc_per_node=8 \
         pytorch_distributed_run_example_with_dali.py --input-path /ws/data/ --num-epochs 4 --output-path /path/to/models --logging-interval 30
 ```
 
-On node 1,
+ノード1:
 
 ```
 cd /ws/gpu-minicamp-examples/pytorch/native/dali

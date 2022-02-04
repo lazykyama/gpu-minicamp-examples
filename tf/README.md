@@ -1,5 +1,7 @@
 # TensorFlow Examples
 
+[Japanese version readme](./README_ja.md)
+
 TensorFlow examples consist of two parts:
 
 * native API

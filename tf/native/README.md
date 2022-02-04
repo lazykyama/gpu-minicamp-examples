@@ -1,5 +1,7 @@
 # TensorFlow native API Examples
 
+[Japanese version readme](./README_ja.md)
+
 Please refer [../README.md](../README.md) to undrestand how you launch runtime container environment.
 
 ## Standard data API as data preprocessing and loading

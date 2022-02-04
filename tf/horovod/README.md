@@ -1,4 +1,4 @@
-# TensorFlow native API Examples
+# TensorFlow+Horovod Examples
 
 Please refer [../README.md](../README.md) to undrestand how you launch runtime container environment.
 

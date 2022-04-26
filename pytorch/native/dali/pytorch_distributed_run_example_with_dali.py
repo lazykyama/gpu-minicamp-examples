@@ -270,6 +270,7 @@ def main():
 def barrier(device, src_rank):
     notification = torch.zeros(1, device=device)
     dist.broadcast(notification, src=src_rank)
+    torch.cuda.synchronize(device=device)
 
 
 def prepare_dataset(

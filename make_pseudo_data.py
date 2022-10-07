@@ -15,6 +15,7 @@
 
 
 import argparse
+import glob
 import os
 
 from PIL import Image
@@ -22,6 +23,7 @@ import numpy as np
 
 
 def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
+    filename_ext = "jpg"
     class_dirpath_list = []
     print("try to create class directories.")
     for c in range(num_classes):
@@ -29,14 +31,21 @@ def make_and_save_images(n_images, num_classes, outdir, filename_prefix):
             outdir, filename_prefix, f"cls_{c:03d}"
         )
         print(f"\t class[{c}]: path={class_dirpath}")
-        os.makedirs(class_dirpath)
+        if os.path.exists(class_dirpath):
+            if not os.path.isdir(class_dirpath):
+                raise RuntimeError(
+                    f"{class_dirpath} found, but it must be a directory."
+                )
+            for rem_file in sorted(glob.glob(os.path.join(class_dirpath, f"*.{filename_ext}"))):
+                os.remove(rem_file)
+        os.makedirs(class_dirpath, exist_ok=True)
         class_dirpath_list.append(class_dirpath)
 
     imgids_list = np.array_split(np.arange(n_images), len(class_dirpath_list))
     for cid, class_dirpath in enumerate(class_dirpath_list):
         for imgid in imgids_list[cid]:
             filepath = os.path.join(
-                class_dirpath, f"{filename_prefix}_{imgid:07d}.jpg"
+                class_dirpath, f"{filename_prefix}_{imgid:07d}.{filename_ext}"
             )
             img = Image.fromarray(
                 np.random.randint(0, 255, (224, 224, 3)).astype(np.uint8)

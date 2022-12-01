@@ -28,7 +28,7 @@ python tf2_keras_mirrored_strategy_example.py --input-path /ws/data/ --num-epoch
 
 ### マルチノード
 
-スクリプト: [tf2_keras_multiworker_example](tf2_keras_multiworker_example).
+スクリプト: [tf2_keras_multiworker_example.py](tf2_keras_multiworker_example.py).
 
 2ノードでのサンプルコマンド:
 

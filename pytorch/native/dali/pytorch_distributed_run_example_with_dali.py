@@ -124,7 +124,7 @@ def main():
         global_rank=global_rank,
         no_validation=args.no_validation,
     )
-    barrier(device=device, src_rank=0)
+    dist.barrier()
 
     model = build_model(n_classes)
     model = model.to(device)
@@ -244,7 +244,7 @@ def main():
                 "rank0 is sending a notification."
             )
         )
-        barrier(device=device, src_rank=0)
+        dist.barrier()
         print(
             (
                 f"[ranks:{local_rank} / {global_rank}] "
@@ -259,7 +259,7 @@ def main():
                 "worker rank is waiting for saving model complesion..."
             )
         )
-        barrier(device=device, src_rank=0)
+        dist.barrier()
         print(
             (
                 f"[ranks:{local_rank} / {global_rank}] "
@@ -270,12 +270,6 @@ def main():
     # Finalize.
     dist.destroy_process_group()
     print("done.")
-
-
-def barrier(device, src_rank):
-    notification = torch.zeros(1, device=device)
-    dist.broadcast(notification, src=src_rank)
-    torch.cuda.synchronize(device=device)
 
 
 def prepare_dataset(

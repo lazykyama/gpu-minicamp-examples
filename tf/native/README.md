@@ -30,7 +30,7 @@ python tf2_keras_mirrored_strategy_example.py --input-path /ws/data/ --num-epoch
 
 ### Multiple nodes
 
-A script: [tf2_keras_multiworker_example](tf2_keras_multiworker_example).
+A script: [tf2_keras_multiworker_example.py](tf2_keras_multiworker_example.py).
 
 Example command for two nodes:
 

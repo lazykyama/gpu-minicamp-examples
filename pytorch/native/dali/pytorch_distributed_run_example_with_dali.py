@@ -15,6 +15,7 @@
 
 import argparse
 import glob
+import multiprocessing as mp
 import os
 import time
 
@@ -43,6 +44,10 @@ def _check_pytorch_version():
 
 
 def main():
+    # NOTE: For safer execution, a process start method is changed.
+    # https://pytorch.org/docs/stable/notes/multiprocessing.html#cuda-in-multiprocessing
+    mp.set_start_method("forkserver")
+
     is_expected_version = _check_pytorch_version()
     if not is_expected_version:
         raise RuntimeError(

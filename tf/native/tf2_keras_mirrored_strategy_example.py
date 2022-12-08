@@ -41,6 +41,8 @@ def main():
         args, global_batch_size, "train", return_n_classes=True
     )
     steps_per_epoch = math.ceil(n_train_ds / global_batch_size)
+    train_ds = strategy.experimental_distribute_dataset(train_ds)
+
     if args.no_validation:
         val_ds = None
         validation_steps = None
@@ -49,6 +51,7 @@ def main():
             args, global_batch_size, "val", shuffle=False
         )
         validation_steps = math.ceil(n_val_ds / global_batch_size)
+        val_ds = strategy.experimental_distribute_dataset(val_ds)
 
     # Setup model, etc.
     with strategy.scope():

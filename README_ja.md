@@ -5,7 +5,7 @@
 
 ## 動作確認済みの環境
 
-* PyTorchのサンプルは `nvcr.io/nvidia/pytorch:21.09-py3` のコンテナでテストされています。
+* PyTorchのサンプルは `nvcr.io/nvidia/pytorch:23.06-py3` のコンテナでテストされています。
 * TensorFlowのサンプルは `nvcr.io/nvidia/tensorflow:21.05-tf2-py3` のコンテナでテストされています。
     - TensorFlowのネイティブAPIのサンプルは、新しめのコンテナで実行することもできますが、最後のログが表示されたのち、`terminate called without an active exception` というエラーが表示されるためご注意ください。(性能などへの影響はないものと思われます)
     - TensorFlow 2.4.0およびそれ以前 (NGCコンテナとしては21.05かそれ以前) であれば問題なさそうです。

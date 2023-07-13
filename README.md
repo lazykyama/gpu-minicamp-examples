@@ -6,7 +6,7 @@ This repository contains several example codes which can be used in GPU minicamp
 
 ## Environment
 
-* PyTorch example is tested on `nvcr.io/nvidia/pytorch:21.09-py3`.
+* PyTorch example is tested on `nvcr.io/nvidia/pytorch:23.06-py3`.
 * TensorFlow example is tested on `nvcr.io/nvidia/tensorflow:21.05-tf2-py3`.
     - Note that you can run TensorFlow's native API example on newer version container images. But, after last log message of each script, you may see a strange error message, `terminate called without an active exception`.
     - TensorFlow 2.4.0 or earlier (=NGC 21.05 or earlier) looks like ok.

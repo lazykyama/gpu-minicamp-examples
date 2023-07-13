@@ -34,11 +34,8 @@ from nvidia.dali.types import DALIDataType
 
 def _check_pytorch_version():
     version_info = tuple(map(int, torch.__version__.split(".")[:2]))
-    if version_info[0] < 1:
-        # Not supported version because of old major version, 0.x.
-        return False
-    if version_info[1] < 9:
-        # Not supported version because of old minor version, 1.8 or earlier.
+    if version_info[0] not in (1, 2):
+        # Not supported version.
         return False
     return True
 
@@ -53,7 +50,7 @@ def main():
         raise RuntimeError(
             (
                 "Your PyTorch version is not expected in this example code."
-                "1.9+ is required."
+                "1.x or 2.x are required."
             )
         )
 
